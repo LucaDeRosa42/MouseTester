@@ -1,0 +1,47 @@
+cmake_minimum_required(VERSION 3.20)
+project(MouseTester LANGUAGES CXX)
+
+if(NOT WIN32)
+    message(FATAL_ERROR "MouseTester supporta solo Windows.")
+endif()
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# --- Dear ImGui (scaricata automaticamente da GitHub alla prima configurazione) ---
+include(FetchContent)
+FetchContent_Declare(
+    imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG        v1.91.5
+)
+FetchContent_MakeAvailable(imgui)
+
+add_library(imgui STATIC
+    ${imgui_SOURCE_DIR}/imgui.cpp
+    ${imgui_SOURCE_DIR}/imgui_draw.cpp
+    ${imgui_SOURCE_DIR}/imgui_tables.cpp
+    ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+    ${imgui_SOURCE_DIR}/imgui_demo.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_win32.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_dx11.cpp
+)
+target_include_directories(imgui PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+target_link_libraries(imgui PUBLIC d3d11 dxgi d3dcompiler)
+
+# --- Applicazione ---
+add_executable(MouseTester WIN32
+    src/main.cpp
+    src/raw_input.cpp
+    src/analyzer.cpp
+    src/mouse_view.cpp
+    src/ui.cpp
+)
+target_compile_definitions(MouseTester PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
+target_link_libraries(MouseTester PRIVATE imgui hid dwmapi)
+
+if(MSVC)
+    # /utf-8: le stringhe dell'interfaccia contengono caratteri accentati e "µ"
+    target_compile_options(MouseTester PRIVATE /utf-8 /W3)
+    set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT MouseTester)
+endif()

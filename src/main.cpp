@@ -1,0 +1,211 @@
+// Mouse Tester - finestra Win32 + DirectX 11 + Dear ImGui
+#include <windows.h>
+#include <d3d11.h>
+#include <dwmapi.h>
+
+#include <memory>
+
+#include "analyzer.hpp"
+#include "imgui.h"
+#include "imgui_impl_dx11.h"
+#include "imgui_impl_win32.h"
+#include "raw_input.hpp"
+#include "ui.hpp"
+
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+namespace {
+
+ID3D11Device*           g_device = nullptr;
+ID3D11DeviceContext*    g_context = nullptr;
+IDXGISwapChain*         g_swapChain = nullptr;
+ID3D11RenderTargetView* g_rtv = nullptr;
+bool g_occluded = false;
+UINT g_resizeW = 0, g_resizeH = 0;
+
+void CreateRenderTarget() {
+    ID3D11Texture2D* backBuffer = nullptr;
+    g_swapChain->GetBuffer(0, IID_PPV_ARGS(&backBuffer));
+    g_device->CreateRenderTargetView(backBuffer, nullptr, &g_rtv);
+    backBuffer->Release();
+}
+
+void CleanupRenderTarget() {
+    if (g_rtv) { g_rtv->Release(); g_rtv = nullptr; }
+}
+
+bool CreateDeviceD3D(HWND hwnd) {
+    DXGI_SWAP_CHAIN_DESC sd{};
+    sd.BufferCount = 2;
+    sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    sd.BufferDesc.RefreshRate = {60, 1};
+    sd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+    sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    sd.OutputWindow = hwnd;
+    sd.SampleDesc.Count = 1;
+    sd.Windowed = TRUE;
+    sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+
+    const D3D_FEATURE_LEVEL levels[] = {D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_0};
+    D3D_FEATURE_LEVEL got;
+    HRESULT hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, levels, 2,
+                                               D3D11_SDK_VERSION, &sd, &g_swapChain, &g_device, &got, &g_context);
+    if (hr == DXGI_ERROR_UNSUPPORTED) // nessuna GPU compatibile: rendering software
+        hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_WARP, nullptr, 0, levels, 2,
+                                           D3D11_SDK_VERSION, &sd, &g_swapChain, &g_device, &got, &g_context);
+    if (FAILED(hr)) return false;
+    CreateRenderTarget();
+    return true;
+}
+
+void CleanupDeviceD3D() {
+    CleanupRenderTarget();
+    if (g_swapChain) { g_swapChain->Release(); g_swapChain = nullptr; }
+    if (g_context)   { g_context->Release();   g_context = nullptr; }
+    if (g_device)    { g_device->Release();    g_device = nullptr; }
+}
+
+LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam)) return true;
+    switch (msg) {
+    case WM_SIZE:
+        if (wParam == SIZE_MINIMIZED) return 0;
+        g_resizeW = LOWORD(lParam);
+        g_resizeH = HIWORD(lParam);
+        return 0;
+    case WM_SYSCOMMAND:
+        if ((wParam & 0xfff0) == SC_KEYMENU) return 0; // niente menu con ALT
+        break;
+    case WM_DESTROY:
+        PostQuitMessage(0);
+        return 0;
+    }
+    return DefWindowProcW(hWnd, msg, wParam, lParam);
+}
+
+bool FileExists(const char* path) { return GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES; }
+
+} // namespace
+
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
+    SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
+    ImGui_ImplWin32_EnableDpiAwareness();
+    const float scale = ImGui_ImplWin32_GetDpiScaleForMonitor(MonitorFromPoint(POINT{0, 0}, MONITOR_DEFAULTTOPRIMARY));
+
+    WNDCLASSEXW wc{sizeof(wc)};
+    wc.style = CS_CLASSDC;
+    wc.lpfnWndProc = WndProc;
+    wc.hInstance = hInstance;
+    wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    wc.lpszClassName = L"MouseTesterWindow";
+    RegisterClassExW(&wc);
+
+    HWND hwnd = CreateWindowW(wc.lpszClassName, L"Mouse Tester", WS_OVERLAPPEDWINDOW, 100, 100,
+                              int(1320 * scale), int(860 * scale), nullptr, nullptr, hInstance, nullptr);
+
+    // Barra del titolo scura (Windows 10 20H1+ / 11)
+    BOOL dark = TRUE;
+    DwmSetWindowAttribute(hwnd, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, &dark, sizeof(dark));
+
+    if (!CreateDeviceD3D(hwnd)) {
+        CleanupDeviceD3D();
+        MessageBoxW(nullptr, L"Impossibile inizializzare DirectX 11.", L"Mouse Tester", MB_ICONERROR);
+        return 1;
+    }
+
+    // Avvio della cattura
+    RawInputCapture capture;
+    if (!capture.start()) {
+        MessageBoxW(nullptr, L"Impossibile registrare il Raw Input del mouse.", L"Mouse Tester", MB_ICONERROR);
+        return 1;
+    }
+    LARGE_INTEGER freq;
+    QueryPerformanceFrequency(&freq);
+    auto analyzer = std::make_unique<Analyzer>(freq.QuadPart);
+
+    ShowWindow(hwnd, SW_SHOWDEFAULT);
+    UpdateWindow(hwnd);
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.IniFilename = nullptr;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+
+    UiState ui;
+    ui.scale = scale;
+    const char* fontPath = "C:\\Windows\\Fonts\\segoeui.ttf";
+    const char* fontBoldPath = "C:\\Windows\\Fonts\\seguisb.ttf";
+    if (FileExists(fontPath)) {
+        io.Fonts->AddFontFromFileTTF(fontPath, 17.0f * scale);
+        ui.fontBig = io.Fonts->AddFontFromFileTTF(FileExists(fontBoldPath) ? fontBoldPath : fontPath, 40.0f * scale);
+    } else {
+        ImFontConfig cfg;
+        cfg.SizePixels = 13.0f * scale;
+        io.Fonts->AddFontDefault(&cfg);
+        cfg.SizePixels = 30.0f * scale;
+        ui.fontBig = io.Fonts->AddFontDefault(&cfg);
+    }
+    ApplyTheme(scale);
+
+    ImGui_ImplWin32_Init(hwnd);
+    ImGui_ImplDX11_Init(g_device, g_context);
+
+    LARGE_INTEGER last;
+    QueryPerformanceCounter(&last);
+    bool done = false;
+    while (!done) {
+        MSG msg;
+        while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
+            TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+            if (msg.message == WM_QUIT) done = true;
+        }
+        if (done) break;
+
+        // Svuota la coda di cattura anche a finestra nascosta, così non si riempie mai
+        LARGE_INTEGER now;
+        QueryPerformanceCounter(&now);
+        MouseEvent ev;
+        while (capture.queue().pop(ev)) analyzer->process(ev);
+        analyzer->refresh(now.QuadPart);
+        const double dt = double(now.QuadPart - last.QuadPart) / double(freq.QuadPart);
+        last = now;
+
+        if (g_occluded && g_swapChain->Present(0, DXGI_PRESENT_TEST) == DXGI_STATUS_OCCLUDED) {
+            Sleep(10);
+            continue;
+        }
+        g_occluded = false;
+
+        if (g_resizeW != 0 && g_resizeH != 0) {
+            CleanupRenderTarget();
+            g_swapChain->ResizeBuffers(0, g_resizeW, g_resizeH, DXGI_FORMAT_UNKNOWN, 0);
+            g_resizeW = g_resizeH = 0;
+            CreateRenderTarget();
+        }
+
+        ImGui_ImplDX11_NewFrame();
+        ImGui_ImplWin32_NewFrame();
+        ImGui::NewFrame();
+        DrawUi(*analyzer, ui, dt, capture.dropped());
+        ImGui::Render();
+
+        const float clear[4] = {0.065f, 0.070f, 0.080f, 1.0f};
+        g_context->OMSetRenderTargets(1, &g_rtv, nullptr);
+        g_context->ClearRenderTargetView(g_rtv, clear);
+        ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+
+        const HRESULT hr = g_swapChain->Present(1, 0); // vsync
+        g_occluded = (hr == DXGI_STATUS_OCCLUDED);
+    }
+
+    capture.stop();
+    ImGui_ImplDX11_Shutdown();
+    ImGui_ImplWin32_Shutdown();
+    ImGui::DestroyContext();
+    CleanupDeviceD3D();
+    DestroyWindow(hwnd);
+    UnregisterClassW(wc.lpszClassName, wc.hInstance);
+    return 0;
+}
