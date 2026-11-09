@@ -4,7 +4,7 @@
 - [x] Scheletro del progetto: cattura Raw Input, coda lock-free, analizzatore, interfaccia ImGui
 - [x] README, CLAUDE.md, .gitignore
 - [x] Repository git e primo commit
-- [ ] Repository privato su GitHub
+- [x] Repository privato su GitHub (`lcrd42/MouseTester`)
 
 ## Fase 1 — Prima compilazione
 - [ ] Configurare e compilare con CMake e Visual Studio (x64-Release)
