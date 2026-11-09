@@ -50,6 +50,91 @@ void StatF(const char* label, const char* fmt, double v, const ImVec4* color = n
     Stat(label, buf, color);
 }
 
+// ---------------------------------------------------------------- scale dei grafici
+// Passo "tondo" (1, 2, 5 × 10^n) che divide `range` in circa `ticks` parti.
+double NiceStep(double range, int ticks) {
+    const double raw = range / ticks;
+    const double p = std::pow(10.0, std::floor(std::log10(raw)));
+    const double f = raw / p;
+    return (f < 1.5 ? 1.0 : f < 3.5 ? 2.0 : f < 7.5 ? 5.0 : 10.0) * p;
+}
+
+// Area interna dell'ultimo grafico ImGui (senza il FramePadding).
+struct PlotArea { ImVec2 min, max; };
+PlotArea LastPlotArea() {
+    const ImVec2 pad = ImGui::GetStyle().FramePadding;
+    const ImVec2 a = ImGui::GetItemRectMin(), b = ImGui::GetItemRectMax();
+    return {ImVec2(a.x + pad.x, a.y + pad.y), ImVec2(b.x - pad.x, b.y - pad.y)};
+}
+
+// Etichetta del valore di riferimento: "125 µs · 8000 Hz".
+void RefLabel(char* buf, size_t size, double refUs) {
+    std::snprintf(buf, size, "%.0f µs · %.0f Hz", refUs, 1e6 / refUs);
+}
+
+// Asse orizzontale in µs sotto l'ultimo grafico (istogramma), con griglia verticale
+// e una linea evidenziata sull'intervallo di riferimento.
+void XAxisMicros(double maxUs, double refUs) {
+    const PlotArea r = LastPlotArea();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const ImU32 grid = ImGui::GetColorU32(ImGuiCol_TextDisabled, 0.30f);
+    const ImU32 text = ImGui::GetColorU32(ImGuiCol_TextDisabled);
+    const float w = r.max.x - r.min.x;
+
+    ImGui::Dummy(ImVec2(w, ImGui::GetTextLineHeight())); // riga riservata ai numeri
+    const float ty = ImGui::GetItemRectMin().y;
+
+    const double step = NiceStep(maxUs, 8);
+    for (double v = 0; v <= maxUs + step * 0.01; v += step) {
+        const float x = r.min.x + float(v / maxUs) * w;
+        dl->AddLine(ImVec2(x, r.min.y), ImVec2(x, r.max.y), grid);
+        char t[32];
+        std::snprintf(t, sizeof(t), v + step > maxUs + step * 0.01 ? "%.0f µs" : "%.0f", v);
+        const float tw = ImGui::CalcTextSize(t).x;
+        dl->AddText(ImVec2(std::clamp(x - tw * 0.5f, r.min.x, r.max.x - tw), ty), text, t);
+    }
+
+    if (refUs > 0 && refUs < maxUs) {
+        const ImU32 accent = ImGui::ColorConvertFloat4ToU32(kAccent);
+        const float x = r.min.x + float(refUs / maxUs) * w;
+        dl->AddLine(ImVec2(x, r.min.y), ImVec2(x, r.max.y), accent, 1.5f);
+        char t[48];
+        RefLabel(t, sizeof(t), refUs);
+        const float tw = ImGui::CalcTextSize(t).x;
+        dl->AddText(ImVec2(std::min(x + 4.0f, r.max.x - tw), r.min.y), accent, t);
+    }
+}
+
+// Asse verticale in µs dentro l'ultimo grafico (andamento nel tempo), con griglia
+// orizzontale e una linea evidenziata sull'intervallo di riferimento.
+void YAxisMicros(double maxUs, double refUs) {
+    const PlotArea r = LastPlotArea();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const ImU32 grid = ImGui::GetColorU32(ImGuiCol_TextDisabled, 0.30f);
+    const ImU32 text = ImGui::GetColorU32(ImGuiCol_TextDisabled);
+    const float h = r.max.y - r.min.y;
+    const float lh = ImGui::GetTextLineHeight();
+
+    const double step = NiceStep(maxUs, 4);
+    for (double v = step; v <= maxUs + step * 0.01; v += step) {
+        const float y = r.max.y - float(v / maxUs) * h;
+        dl->AddLine(ImVec2(r.min.x, y), ImVec2(r.max.x, y), grid);
+        char t[32];
+        std::snprintf(t, sizeof(t), "%.0f µs", v);
+        dl->AddText(ImVec2(r.min.x + 4.0f, std::max(r.min.y, y - lh)), text, t);
+    }
+
+    if (refUs > 0 && refUs < maxUs) {
+        const ImU32 accent = ImGui::ColorConvertFloat4ToU32(kAccent);
+        const float y = r.max.y - float(refUs / maxUs) * h;
+        dl->AddLine(ImVec2(r.min.x, y), ImVec2(r.max.x, y), accent, 1.5f);
+        char t[48];
+        RefLabel(t, sizeof(t), refUs);
+        const float tw = ImGui::CalcTextSize(t).x;
+        dl->AddText(ImVec2(r.max.x - tw - 4.0f, std::max(r.min.y, y - lh)), accent, t);
+    }
+}
+
 // ---------------------------------------------------------------- pannello sinistro
 void DrawLeftPanel(Analyzer& a, UiState& s, double dt) {
     ImGui::PushFont(s.fontBig);
@@ -129,7 +214,8 @@ void DrawLeftPanel(Analyzer& a, UiState& s, double dt) {
 // ---------------------------------------------------------------- scheda polling
 void DrawPollingTab(Analyzer& a, UiState& s) {
     const IntervalStats& st = a.stats;
-    const double hz = st.medianUs > 0 ? 1e6 / st.medianUs : 0.0;
+    // Dalla media e non dalla mediana: vedi Analyzer::refresh().
+    const double hz = st.meanUs > 0 ? 1e6 / st.meanUs : 0.0;
     const int nominal = NearestStandardRate(hz);
 
     ImGui::PushFont(s.fontBig);
@@ -164,15 +250,13 @@ void DrawPollingTab(Analyzer& a, UiState& s) {
     // Istogramma degli intervalli
     ImGui::Spacing();
     SectionTitle("Distribuzione degli intervalli");
-    const double maxUs = std::max(st.medianUs * 3.0, 400.0);
+    const double maxUs = std::max(st.meanUs * 3.0, 400.0);
+    // Riferimento: l'intervallo del rate standard riconosciuto, altrimenti la media.
+    const double refUs = st.count > 100 ? (nominal ? 1e6 / nominal : st.meanUs) : 0.0;
     a.histogram(120, maxUs, s.histogram);
     const float plotH = 170.0f * s.scale;
     ImGui::PlotHistogram("##hist", s.histogram.data(), (int)s.histogram.size(), 0, nullptr, 0.0f, FLT_MAX, ImVec2(-FLT_MIN, plotH));
-    ImGui::TextDisabled("0 µs");
-    char right[32];
-    std::snprintf(right, sizeof(right), "%.0f µs", maxUs);
-    ImGui::SameLine(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(right).x);
-    ImGui::TextDisabled("%s", right);
+    XAxisMicros(maxUs, refUs);
 
     // Andamento nel tempo
     ImGui::Spacing();
@@ -182,6 +266,7 @@ void DrawPollingTab(Analyzer& a, UiState& s) {
     s.timeline.resize(n);
     for (size_t i = 0; i < n; ++i) s.timeline[i] = iv[iv.size() - n + i];
     ImGui::PlotLines("##timeline", s.timeline.data(), (int)n, 0, nullptr, 0.0f, (float)maxUs, ImVec2(-FLT_MIN, plotH));
+    YAxisMicros(maxUs, refUs);
 
     ImGui::Spacing();
     Hint("Gli intervalli \"raggruppati\" sono pacchetti consegnati insieme da Windows: indicano carico "
@@ -191,66 +276,170 @@ void DrawPollingTab(Analyzer& a, UiState& s) {
 }
 
 // ---------------------------------------------------------------- scheda sensore
-void DrawPath(const Analyzer& a, ImVec2 size) {
+constexpr size_t kRecentPoints = 3000; // "ultimi movimenti": evidenziati e usati da "Solo ultimi"
+
+const ImU32 kMarkColors[4] = {
+    IM_COL32(255, 90, 90, 255),   // pacchetto mancante
+    IM_COL32(255, 184, 77, 255),  // picco
+    IM_COL32(200, 120, 255, 255), // calo
+    IM_COL32(255, 90, 200, 255),  // inversione
+};
+
+// Tracciato del sensore con zoom (rotella), spostamento (trascina) e adattamento
+// automatico (doppio click). Le coordinate sono in count del sensore.
+void DrawPath(const Analyzer& a, UiState& s, ImVec2 size) {
+    UiState::PathView& v = s.pathView;
+    const auto& path = a.path();
+    const size_t n = path.size();
+
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const ImVec2 p0 = ImGui::GetCursorScreenPos();
     const ImVec2 p1(p0.x + size.x, p0.y + size.y);
-    dl->AddRectFilled(p0, p1, IM_COL32(14, 15, 18, 255), 8.0f);
     const ImVec2 c((p0.x + p1.x) * 0.5f, (p0.y + p1.y) * 0.5f);
-    dl->AddLine(ImVec2(p0.x, c.y), ImVec2(p1.x, c.y), IM_COL32(40, 43, 50, 255));
-    dl->AddLine(ImVec2(c.x, p0.y), ImVec2(c.x, p1.y), IM_COL32(40, 43, 50, 255));
-    ImGui::Dummy(size);
 
-    const auto& path = a.path();
-    const size_t n = path.size();
-    if (n < 2) return;
+    ImGui::InvisibleButton("##path", size);
+    const bool hovered = ImGui::IsItemHovered();
+    ImGui::SetItemKeyOwner(ImGuiKey_MouseWheelY); // la rotella fa zoom, non scorre la finestra
+    const ImGuiIO& io = ImGui::GetIO();
 
-    float minX = FLT_MAX, minY = FLT_MAX, maxX = -FLT_MAX, maxY = -FLT_MAX;
-    for (size_t i = 0; i < n; ++i) {
-        minX = std::min(minX, path[i].x); maxX = std::max(maxX, path[i].x);
-        minY = std::min(minY, path[i].y); maxY = std::max(maxY, path[i].y);
+    // --- Adattamento automatico ---
+    if (v.autoFit && n >= 2) {
+        const size_t from = v.recentOnly && n > kRecentPoints ? n - kRecentPoints : 0;
+        float minX = FLT_MAX, minY = FLT_MAX, maxX = -FLT_MAX, maxY = -FLT_MAX;
+        for (size_t i = from; i < n; ++i) {
+            minX = std::min(minX, path[i].x); maxX = std::max(maxX, path[i].x);
+            minY = std::min(minY, path[i].y); maxY = std::max(maxY, path[i].y);
+        }
+        const float margin = 16.0f;
+        v.pxPerCount = std::min((size.x - 2 * margin) / std::max(maxX - minX, 1.0f),
+                                (size.y - 2 * margin) / std::max(maxY - minY, 1.0f));
+        v.centerX = (minX + maxX) * 0.5f;
+        v.centerY = (minY + maxY) * 0.5f;
     }
-    const float margin = 16.0f;
-    const float sc = std::min((size.x - 2 * margin) / std::max(maxX - minX, 1.0f),
-                              (size.y - 2 * margin) / std::max(maxY - minY, 1.0f));
-    const float ox = c.x - (minX + maxX) * 0.5f * sc;
-    const float oy = c.y - (minY + maxY) * 0.5f * sc;
 
+    // --- Zoom attorno al cursore, spostamento, reset ---
+    if (hovered && io.MouseWheel != 0.0f) {
+        const float wx = v.centerX + (io.MousePos.x - c.x) / v.pxPerCount;
+        const float wy = v.centerY + (io.MousePos.y - c.y) / v.pxPerCount;
+        v.pxPerCount = std::clamp(v.pxPerCount * std::pow(1.25f, io.MouseWheel), 1e-4f, 400.0f);
+        v.centerX = wx - (io.MousePos.x - c.x) / v.pxPerCount;
+        v.centerY = wy - (io.MousePos.y - c.y) / v.pxPerCount;
+        v.autoFit = false;
+    }
+    if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 0.0f)) {
+        v.centerX -= io.MouseDelta.x / v.pxPerCount;
+        v.centerY -= io.MouseDelta.y / v.pxPerCount;
+        v.autoFit = false;
+    }
+    if (hovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) v.autoFit = true;
+
+    auto toScreen = [&](float x, float y) {
+        return ImVec2(c.x + (x - v.centerX) * v.pxPerCount, c.y + (y - v.centerY) * v.pxPerCount);
+    };
+
+    // --- Sfondo e griglia in count ---
+    dl->AddRectFilled(p0, p1, IM_COL32(14, 15, 18, 255), 8.0f);
     dl->PushClipRect(p0, p1, true);
-    // A blocchi, per non superare il limite di vertici per singola chiamata
-    constexpr size_t kChunk = 1500;
-    std::vector<ImVec2> pts;
-    pts.reserve(kChunk + 1);
-    const size_t recent = n > 3000 ? n - 3000 : 0;
-    for (size_t start = 0; start + 1 < n; start += kChunk) {
-        pts.clear();
-        const size_t end = std::min(n, start + kChunk + 1);
-        for (size_t i = start; i < end; ++i) pts.push_back(ImVec2(ox + path[i].x * sc, oy + path[i].y * sc));
-        const ImU32 col = start >= recent ? ImGui::ColorConvertFloat4ToU32(kAccent) : IM_COL32(60, 110, 140, 255);
-        dl->AddPolyline(pts.data(), (int)pts.size(), col, 0, 1.5f);
+    const double step = std::max(1.0, NiceStep(size.x / v.pxPerCount, 8));
+    const ImU32 grid = IM_COL32(34, 37, 44, 255);
+    const double x0 = std::floor((v.centerX - (c.x - p0.x) / v.pxPerCount) / step) * step;
+    const double y0 = std::floor((v.centerY - (c.y - p0.y) / v.pxPerCount) / step) * step;
+    for (double gx = x0; ; gx += step) {
+        const float sx = toScreen(float(gx), 0).x;
+        if (sx > p1.x) break;
+        dl->AddLine(ImVec2(sx, p0.y), ImVec2(sx, p1.y), grid);
     }
+    for (double gy = y0; ; gy += step) {
+        const float sy = toScreen(0, float(gy)).y;
+        if (sy > p1.y) break;
+        dl->AddLine(ImVec2(p0.x, sy), ImVec2(p1.x, sy), grid);
+    }
+
+    if (n >= 2) {
+        // Linea a blocchi, per non superare il limite di vertici per singola chiamata.
+        // Più spessa quando si zooma, per vedere bene ogni segmento.
+        const float thick = std::clamp(1.0f + v.pxPerCount * 0.15f, 1.5f, 3.0f);
+        constexpr size_t kChunk = 1500;
+        s.pathPts.reserve(kChunk + 1);
+        const size_t recent = n > kRecentPoints ? n - kRecentPoints : 0;
+        for (size_t start = 0; start + 1 < n; start += kChunk) {
+            s.pathPts.clear();
+            const size_t end = std::min(n, start + kChunk + 1);
+            for (size_t i = start; i < end; ++i) s.pathPts.push_back(toScreen(path[i].x, path[i].y));
+            const ImU32 col = start + kChunk >= recent ? ImGui::ColorConvertFloat4ToU32(kAccent) : IM_COL32(60, 110, 140, 255);
+            dl->AddPolyline(s.pathPts.data(), (int)s.pathPts.size(), col, 0, thick);
+        }
+
+        // Da vicino si vede ogni singolo pacchetto come un punto.
+        if (v.pxPerCount >= 3.0f) {
+            const ImU32 dot = IM_COL32(230, 240, 255, 255);
+            const float rad = std::min(1.5f + v.pxPerCount * 0.08f, 3.5f);
+            for (size_t i = 0; i < n; ++i) {
+                const ImVec2 q = toScreen(path[i].x, path[i].y);
+                if (q.x >= p0.x && q.x <= p1.x && q.y >= p0.y && q.y <= p1.y) dl->AddCircleFilled(q, rad, dot, 8);
+            }
+        }
+    }
+
+    // Anomalie del sensore evidenziate sul tracciato.
+    const auto& marks = a.marks();
+    for (size_t i = 0; i < marks.size(); ++i) {
+        const SensorMark& m = marks[i];
+        dl->AddCircle(toScreen(m.x, m.y), 6.0f, kMarkColors[int(m.kind)], 12, 2.0f);
+    }
+
+    // Scala della griglia in basso a destra.
+    char t[48];
+    std::snprintf(t, sizeof(t), "griglia %.0f count", step);
+    const ImVec2 ts = ImGui::CalcTextSize(t);
+    dl->AddText(ImVec2(p1.x - ts.x - 8.0f, p1.y - ts.y - 6.0f), ImGui::GetColorU32(ImGuiCol_TextDisabled), t);
     dl->PopClipRect();
 }
 
 void DrawSensorTab(Analyzer& a, UiState& s) {
-    if (ImGui::BeginTable("sstats", 3, ImGuiTableFlags_SizingStretchSame)) {
-        auto color = [](uint64_t v) { return v == 0 ? &kGood : v < 10 ? &kWarn : &kBad; };
+    if (ImGui::BeginTable("sstats", 5, ImGuiTableFlags_SizingStretchSame)) {
+        // Colore in base alla frequenza: le anomalie contano rispetto ai pacchetti valutati.
+        auto color = [&](uint64_t v) {
+            const double perMille = a.checkedPackets ? 1000.0 * double(v) / double(a.checkedPackets) : 0.0;
+            return v == 0 ? &kGood : perMille < 1.0 ? &kWarn : &kBad;
+        };
         char buf[32];
+        std::snprintf(buf, sizeof(buf), "%llu", (unsigned long long)a.checkedPackets);
+        Stat("Pacchetti valutati", buf);
         std::snprintf(buf, sizeof(buf), "%llu", (unsigned long long)a.skippedEstimate);
-        Stat("Pacchetti mancanti (stima)", buf, color(a.skippedEstimate));
+        Stat("Mancanti", buf, color(a.skippedEstimate));
         std::snprintf(buf, sizeof(buf), "%llu", (unsigned long long)a.spikes);
-        Stat("Picchi anomali", buf, color(a.spikes));
+        Stat("Picchi", buf, color(a.spikes));
+        std::snprintf(buf, sizeof(buf), "%llu", (unsigned long long)a.dips);
+        Stat("Cali", buf, color(a.dips));
         std::snprintf(buf, sizeof(buf), "%llu", (unsigned long long)a.reversals);
-        Stat("Inversioni improvvise", buf, color(a.reversals));
+        Stat("Inversioni", buf, color(a.reversals));
         ImGui::EndTable();
     }
     ImGui::Spacing();
     SectionTitle("Tracciato");
-    const float h = std::max(200.0f, ImGui::GetContentRegionAvail().y - ImGui::GetTextLineHeightWithSpacing() * 4.5f);
-    DrawPath(a, ImVec2(ImGui::GetContentRegionAvail().x, h));
-    Hint("Continuità: muovi il mouse veloce e in modo regolare; con un sensore sano i contatori restano a zero. "
-         "Angle snapping: traccia linee diagonali a mano libera, se diventano perfettamente dritte "
-         "lo snapping è attivo. Il tracciato usa i count grezzi del sensore, senza accelerazione di Windows.");
+
+    // Comandi della vista e legenda delle anomalie
+    UiState::PathView& v = s.pathView;
+    if (ImGui::Button("Adatta")) v.autoFit = true;
+    ImGui::SameLine();
+    if (ImGui::Checkbox("Solo ultimi movimenti", &v.recentOnly)) v.autoFit = true;
+    ImGui::SameLine();
+    ImGui::TextDisabled("  zoom %.2f px/count%s", v.pxPerCount, v.autoFit ? " (auto)" : "");
+    const char* markNames[4] = {"mancante", "picco", "calo", "inversione"};
+    for (int i = 0; i < 4; ++i) {
+        ImGui::SameLine(0, i == 0 ? 24.0f * s.scale : -1.0f);
+        ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kMarkColors[i]), "o %s", markNames[i]);
+    }
+
+    const float h = std::max(200.0f, ImGui::GetContentRegionAvail().y - ImGui::GetTextLineHeightWithSpacing() * 5.5f);
+    DrawPath(a, s, ImVec2(ImGui::GetContentRegionAvail().x, h));
+    Hint("Rotella sul tracciato: zoom. Trascina: sposta. Doppio click: adatta. Da vicino ogni punto è un pacchetto.");
+    Hint("Continuità: muovi il mouse veloce e in modo regolare. Ogni pacchetto viene confrontato con i 4 vicini: "
+         "se porta 2-4 volte il loro movimento mancano dei pacchetti, se ne porta molto di più o molto di meno è "
+         "un picco o un calo. Con un sensore sano i contatori restano a zero. Angle snapping: traccia diagonali a "
+         "mano libera, se diventano perfettamente dritte lo snapping è attivo. Il tracciato usa i count grezzi del "
+         "sensore, senza accelerazione di Windows.");
     if (ImGui::Button("Azzera sensore")) a.resetSensor();
 }
 

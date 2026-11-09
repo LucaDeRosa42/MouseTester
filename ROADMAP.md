@@ -14,6 +14,8 @@
 - [ ] I tasti del mouse disegnato si illuminano alla pressione
 
 ## Fase 2 — Polling rate affidabile
+- [x] Rate calcolato dalla media degli intervalli e non dalla mediana (a 8000 Hz segnava ~11000 Hz)
+- [x] Scale numeriche in µs e linea di riferimento sui grafici del polling
 - [ ] Verifica a 125, 500 e 1000 Hz: rate, jitter e istogramma coerenti
 - [ ] Verifica a 4000 e 8000 Hz: nessun pacchetto perso dal thread di cattura
 - [ ] Valutare GetRawInputBuffer al posto di un GetRawInputData per messaggio, se a 8000 Hz la coda dei messaggi non regge
@@ -22,7 +24,9 @@
 - [ ] Confronto dei risultati con un altro tester noto
 
 ## Fase 3 — Sensore e DPI
-- [ ] Taratura delle soglie per pacchetti mancanti, picchi e inversioni
+- [x] Continuità valutata sui count di ogni pacchetto rispetto ai 4 vicini, non sui tempi di arrivo
+- [x] Tracciato con zoom, spostamento, punti dei singoli pacchetti e anomalie segnate
+- [ ] Taratura delle soglie per pacchetti mancanti, picchi, cali e inversioni
 - [ ] Tracciato per l'angle snapping: linee orizzontali e diagonali leggibili
 - [ ] Misura DPI guidata: distanza nota (righello o tappetino), più passate, media e scarto
 - [ ] Verifica della misura DPI ai valori impostati nel software del mouse

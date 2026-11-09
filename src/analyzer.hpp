@@ -45,6 +45,10 @@ struct ButtonInfo {
 
 struct PathPoint { float x, y; };
 
+// Punto anomalo del tracciato, per evidenziarlo nel disegno.
+enum class MarkKind : uint8_t { Skipped, Spike, Dip, Reversal };
+struct SensorMark { float x, y; MarkKind kind; };
+
 class Analyzer {
 public:
     static constexpr size_t kIntervals = 16384;
@@ -66,6 +70,7 @@ public:
     void histogram(int bins, double maxUs, std::vector<float>& out) const;
     const Ring<float, kIntervals>& intervals() const { return intervals_; }
     const Ring<PathPoint, kPath>& path() const { return path_; }
+    const Ring<SensorMark, 1024>& marks() const { return marks_; }
 
     // --- Impostazioni ---
     HANDLE deviceFilter = nullptr; // nullptr = tutti i dispositivi
@@ -77,8 +82,11 @@ public:
     double   packetsLastSecond = 0;
     uint64_t movePackets = 0;
 
-    uint64_t skippedEstimate = 0; // pacchetti mancanti durante movimento veloce
-    uint64_t spikes = 0;          // salti improvvisi di velocità
+    // Continuità del sensore, valutata sui count di ogni pacchetto rispetto ai vicini.
+    uint64_t checkedPackets = 0;  // pacchetti abbastanza veloci e regolari da essere valutati
+    uint64_t skippedEstimate = 0; // pacchetti mancanti: un pacchetto porta 2-4 volte il movimento dei vicini
+    uint64_t spikes = 0;          // pacchetto con molto più movimento dei vicini (non multiplo intero)
+    uint64_t dips = 0;            // pacchetto con molto meno movimento dei vicini
     uint64_t reversals = 0;       // inversioni di direzione in un solo pacchetto
 
     std::array<ButtonInfo, 5> buttons{};
@@ -98,13 +106,20 @@ private:
 
     double freq_;
     int64_t lastMoveQpc_ = 0;
-    double nominalUs_ = 0; // mediana aggiornata a ogni frame
     double speedEma_ = 0;  // velocità media recente in count/pacchetto
     int32_t lastDx_ = 0, lastDy_ = 0;
     float posX_ = 0, posY_ = 0;
 
     Ring<float, kIntervals> intervals_;
     Ring<PathPoint, kPath> path_;
+    Ring<SensorMark, 1024> marks_;
+
+    // Finestra degli ultimi 5 pacchetti di movimento continuo: il pacchetto centrale
+    // viene confrontato con i 2 precedenti e i 2 successivi.
+    struct Sample { float mag, x, y; };
+    std::array<Sample, 5> window_{};
+    size_t windowCount_ = 0;
+    void checkContinuity();
     std::deque<int64_t> lastSecond_;
     std::vector<float> scratch_;
 };

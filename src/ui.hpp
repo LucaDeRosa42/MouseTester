@@ -20,6 +20,15 @@ struct UiState {
 
     std::vector<float> histogram;
     std::vector<float> timeline;
+
+    // Vista del tracciato del sensore, in count del sensore.
+    struct PathView {
+        bool  autoFit = true;      // adatta la vista a ogni frame
+        bool  recentOnly = false;  // adatta solo agli ultimi movimenti
+        float centerX = 0, centerY = 0;
+        float pxPerCount = 1.0f;
+    } pathView;
+    std::vector<ImVec2> pathPts;
 };
 
 void ApplyTheme(float scale);
