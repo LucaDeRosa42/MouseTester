@@ -7,8 +7,8 @@
 - [x] Repository privato su GitHub (`lcrd42/MouseTester`)
 
 ## Fase 1 — Prima compilazione
-- [ ] Configurare e compilare con CMake e Visual Studio (x64-Release)
-- [ ] Correggere gli errori di compilazione dello scheletro
+- [x] Configurare e compilare con CMake e Visual Studio (x64-Release)
+- [x] Correggere gli errori di compilazione dello scheletro (nessuno: compila pulito con /W3)
 - [ ] La finestra si apre, ImGui disegna, il mouse vettoriale si vede
 - [ ] Il thread di cattura riceve WM_INPUT e la coda si svuota a ogni frame
 - [ ] I tasti del mouse disegnato si illuminano alla pressione
