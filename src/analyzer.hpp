@@ -7,7 +7,7 @@
 
 #include "raw_input.hpp"
 
-// Buffer circolare a dimensione fissa. Indice 0 = elemento più vecchio.
+// Fixed-size circular buffer. Index 0 = oldest element.
 template <typename T, size_t N>
 class Ring {
 public:
@@ -29,23 +29,23 @@ struct IntervalStats {
     size_t count = 0;
     double meanUs = 0, medianUs = 0, stddevUs = 0;
     double minUs = 0, maxUs = 0, p01Us = 0, p99Us = 0;
-    double outlierPct = 0; // intervalli > 1.5x la mediana
-    double batchedPct = 0; // intervalli < 0.25x la mediana (pacchetti arrivati insieme)
+    double outlierPct = 0; // intervals > 1.5x the mean
+    double batchedPct = 0; // intervals < 0.25x the mean (packets that arrived together)
 };
 
 struct ButtonInfo {
     bool     down = false;
     uint64_t presses = 0;
-    uint64_t chatter = 0;          // doppi click involontari
-    double   lastGapMs = -1;       // tempo dal rilascio precedente alla nuova pressione
-    double   lastHoldMs = -1;      // durata dell'ultima pressione
+    uint64_t chatter = 0;          // unintended double clicks
+    double   lastGapMs = -1;       // time from the previous release to the new press
+    double   lastHoldMs = -1;      // duration of the last press
     double   lastChatterMs = -1;
     int64_t  lastDownQpc = 0, lastUpQpc = 0;
 };
 
 struct PathPoint { float x, y; };
 
-// Punto anomalo del tracciato, per evidenziarlo nel disegno.
+// Anomalous point of the path, to highlight it in the drawing.
 enum class MarkKind : uint8_t { Skipped, Spike, Dip, Reversal };
 struct SensorMark { float x, y; MarkKind kind; };
 
@@ -57,7 +57,7 @@ public:
     explicit Analyzer(int64_t qpcFrequency) : freq_(double(qpcFrequency)) {}
 
     void process(const MouseEvent& e);
-    void refresh(int64_t nowQpc); // da chiamare una volta per frame
+    void refresh(int64_t nowQpc); // call once per frame
 
     void resetPolling();
     void resetSensor();
@@ -72,31 +72,31 @@ public:
     const Ring<PathPoint, kPath>& path() const { return path_; }
     const Ring<SensorMark, 1024>& marks() const { return marks_; }
 
-    // Velocità minima perché ogni poll contenga movimento: sotto, il sensore salta dei poll
-    // (non ha nulla da riportare) e gli intervalli misurati non sono più il polling rate.
-    static constexpr double kFastSpeed = 1.5; // count per pacchetto
+    // Minimum speed for every poll to contain movement: below it the sensor skips polls
+    // (it has nothing to report) and the measured intervals are no longer the polling rate.
+    static constexpr double kFastSpeed = 1.5; // counts per packet
 
-    // Stato della misura del polling, per l'interfaccia.
+    // Polling measurement state, for the UI.
     bool   moving() const { return lastMoveQpc_ && nowQpc_ - lastMoveQpc_ < int64_t(freq_ * 0.25); }
     bool   collecting() const { return lastFastQpc_ && nowQpc_ - lastFastQpc_ < int64_t(freq_ * 0.25); }
-    double speedPerPacket() const { return speedEma_; } // count per pacchetto, media recente
+    double speedPerPacket() const { return speedEma_; } // counts per packet, recent average
 
-    // --- Impostazioni ---
-    HANDLE deviceFilter = nullptr; // nullptr = tutti i dispositivi
+    // --- Settings ---
+    HANDLE deviceFilter = nullptr; // nullptr = all devices
     double chatterThresholdMs = 30.0;
 
-    // --- Risultati (lettura) ---
+    // --- Results (read only) ---
     std::unordered_map<HANDLE, uint64_t> devicePackets;
     IntervalStats stats;
     double   packetsLastSecond = 0;
     uint64_t movePackets = 0;
 
-    // Continuità del sensore, valutata sui count di ogni pacchetto rispetto ai vicini.
-    uint64_t checkedPackets = 0;  // pacchetti abbastanza veloci e regolari da essere valutati
-    uint64_t skippedEstimate = 0; // pacchetti mancanti: un pacchetto porta 2-4 volte il movimento dei vicini
-    uint64_t spikes = 0;          // pacchetto con molto più movimento dei vicini (non multiplo intero)
-    uint64_t dips = 0;            // pacchetto con molto meno movimento dei vicini
-    uint64_t reversals = 0;       // inversioni di direzione in un solo pacchetto
+    // Sensor continuity, judged on the counts of each packet compared with its neighbours.
+    uint64_t checkedPackets = 0;  // packets fast and steady enough to be checked
+    uint64_t skippedEstimate = 0; // missing packets: a packet carries 2-4 times its neighbours' movement
+    uint64_t spikes = 0;          // packet with much more movement than its neighbours (not an integer multiple)
+    uint64_t dips = 0;            // packet with much less movement than its neighbours
+    uint64_t reversals = 0;       // direction reversals within a single packet
 
     std::array<ButtonInfo, 5> buttons{};
     int64_t  wheelUp = 0, wheelDown = 0, tiltLeft = 0, tiltRight = 0;
@@ -115,9 +115,9 @@ private:
 
     double freq_;
     int64_t lastMoveQpc_ = 0;
-    int64_t lastFastQpc_ = 0; // ultimo intervallo registrato (mouse abbastanza veloce)
-    int64_t nowQpc_ = 0;      // istante dell'ultimo refresh()
-    double speedEma_ = 0;  // velocità media recente in count/pacchetto
+    int64_t lastFastQpc_ = 0; // last recorded interval (mouse fast enough)
+    int64_t nowQpc_ = 0;      // time of the last refresh()
+    double speedEma_ = 0;  // recent average speed in counts/packet
     int32_t lastDx_ = 0, lastDy_ = 0;
     float posX_ = 0, posY_ = 0;
 
@@ -125,8 +125,8 @@ private:
     Ring<PathPoint, kPath> path_;
     Ring<SensorMark, 1024> marks_;
 
-    // Finestra degli ultimi 5 pacchetti di movimento continuo: il pacchetto centrale
-    // viene confrontato con i 2 precedenti e i 2 successivi.
+    // Window of the last 5 packets of continuous movement: the middle packet
+    // is compared with the 2 before and the 2 after it.
     struct Sample { float mag, x, y; };
     std::array<Sample, 5> window_{};
     size_t windowCount_ = 0;

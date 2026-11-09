@@ -18,7 +18,7 @@ std::string toUtf8(const std::wstring& w) {
     return out;
 }
 
-// Estrae "VID_xxxx" e "PID_xxxx" dal percorso del dispositivo.
+// Extracts "VID_xxxx" and "PID_xxxx" from the device path.
 std::string vidPidFromPath(const std::wstring& path) {
     auto grab = [&](const wchar_t* key) -> std::wstring {
         const size_t pos = path.find(key);
@@ -51,7 +51,7 @@ void RawInputCapture::stop() {
 
 void RawInputCapture::run() {
     threadId_ = GetCurrentThreadId();
-    // Il thread di cattura deve rispondere subito: priorità massima.
+    // The capture thread must respond immediately: highest priority.
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 
     WNDCLASSEXW wc{sizeof(wc)};
@@ -60,7 +60,7 @@ void RawInputCapture::run() {
     wc.lpszClassName = kSinkClass;
     RegisterClassExW(&wc);
 
-    // Finestra "message-only": invisibile, serve solo a ricevere WM_INPUT.
+    // "Message-only" window: invisible, it only exists to receive WM_INPUT.
     HWND hwnd = CreateWindowExW(0, kSinkClass, L"", 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, wc.hInstance, nullptr);
 
     RAWINPUTDEVICE rid{};
@@ -82,11 +82,11 @@ void RawInputCapture::run() {
         MSG msg;
         while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
             if (msg.message == WM_INPUT) {
-                // Timestamp preso il prima possibile dopo l'arrivo del messaggio.
+                // Timestamp taken as soon as possible after the message arrives.
                 LARGE_INTEGER now;
                 QueryPerformanceCounter(&now);
                 handleRawInput(reinterpret_cast<HRAWINPUT>(msg.lParam), now.QuadPart);
-                DefWindowProcW(msg.hwnd, msg.message, msg.wParam, msg.lParam); // pulizia richiesta da Windows
+                DefWindowProcW(msg.hwnd, msg.message, msg.wParam, msg.lParam); // cleanup required by Windows
             } else if (msg.message == WM_QUIT) {
                 quit = true;
                 break;
@@ -114,7 +114,7 @@ void RawInputCapture::handleRawInput(HRAWINPUT handle, int64_t qpc) {
     MouseEvent e;
     e.qpc = qpc;
     e.device = raw.header.hDevice;
-    if (!(m.usFlags & MOUSE_MOVE_ABSOLUTE)) { // ignoriamo tablet e desktop remoto
+    if (!(m.usFlags & MOUSE_MOVE_ABSOLUTE)) { // ignore tablets and remote desktop
         e.dx = m.lLastX;
         e.dy = m.lLastY;
     }
@@ -126,18 +126,18 @@ void RawInputCapture::handleRawInput(HRAWINPUT handle, int64_t qpc) {
 }
 
 std::string RawInputCapture::deviceName(HANDLE device) {
-    if (!device) return "Dispositivo sconosciuto";
+    if (!device) return "Unknown device";
 
     UINT len = 0;
     GetRawInputDeviceInfoW(device, RIDI_DEVICENAME, nullptr, &len);
-    if (len == 0) return "Dispositivo sconosciuto";
+    if (len == 0) return "Unknown device";
     std::wstring path(len, L'\0');
-    if (GetRawInputDeviceInfoW(device, RIDI_DEVICENAME, path.data(), &len) == (UINT)-1) return "Dispositivo sconosciuto";
+    if (GetRawInputDeviceInfoW(device, RIDI_DEVICENAME, path.data(), &len) == (UINT)-1) return "Unknown device";
     path.resize(wcslen(path.c_str()));
 
     const std::string ids = vidPidFromPath(path);
 
-    // Prova a leggere il nome commerciale dal descrittore HID.
+    // Try to read the product name from the HID descriptor.
     HANDLE h = CreateFileW(path.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
     if (h != INVALID_HANDLE_VALUE) {
         wchar_t product[128] = {};

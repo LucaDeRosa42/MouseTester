@@ -21,16 +21,16 @@ struct UiState {
     std::vector<float> histogram;
     std::vector<float> timeline;
 
-    // Vista del tracciato del sensore, in count del sensore.
+    // Sensor path view, in sensor counts.
     struct PathView {
-        bool  autoFit = true;      // adatta la vista a ogni frame
-        bool  recentOnly = false;  // adatta solo agli ultimi movimenti
+        bool  autoFit = true;      // fit the view every frame
+        bool  recentOnly = false;  // fit only the recent movements
         float centerX = 0, centerY = 0;
         float pxPerCount = 1.0f;
     } pathView;
     std::vector<ImVec2> pathPts;
 
-    Ring<float, 240> frameMs; // durata degli ultimi frame, per il contatore degli scatti
+    Ring<float, 240> frameMs; // duration of the last frames, for the stutter indicator
 };
 
 void ApplyTheme(float scale);

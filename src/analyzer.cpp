@@ -4,7 +4,7 @@
 #include <cmath>
 
 namespace {
-constexpr double kMotionGapUs = 50'000.0; // oltre 50 ms consideriamo il mouse fermo
+constexpr double kMotionGapUs = 50'000.0; // beyond 50 ms we consider the mouse stopped
 }
 
 void Analyzer::process(const MouseEvent& e) {
@@ -21,16 +21,16 @@ void Analyzer::processMotion(const MouseEvent& e) {
 
     const bool continuous = lastMoveQpc_ && toUs(e.qpc - lastMoveQpc_) < kMotionGapUs;
 
-    // --- Polling: intervallo dal pacchetto di movimento precedente ---
-    // Contiamo solo gli intervalli a mouse veloce: se il mouse è lento il sensore
-    // salta dei poll (nessun movimento da riportare) e gli intervalli si allungano.
+    // --- Polling: interval since the previous motion packet ---
+    // Only intervals with a fast mouse count: when the mouse is slow the sensor
+    // skips polls (no movement to report) and the intervals get longer.
     if (continuous && speedEma_ >= kFastSpeed) {
         intervals_.push(float(toUs(e.qpc - lastMoveQpc_)));
         lastFastQpc_ = e.qpc;
     }
     lastMoveQpc_ = e.qpc;
 
-    // --- Tracciato e DPI ---
+    // --- Path and DPI ---
     posX_ += float(e.dx);
     posY_ += float(e.dy);
     path_.push({posX_, posY_});
@@ -39,18 +39,18 @@ void Analyzer::processMotion(const MouseEvent& e) {
         dpiSumY += e.dy;
     }
 
-    // --- Continuità del sensore ---
-    // Non usiamo i tempi di arrivo (Windows consegna i pacchetti a gruppi) ma i count:
-    // ogni pacchetto è un poll del mouse, quindi a velocità costante porta lo stesso
-    // movimento dei vicini, indipendentemente da quando Windows lo consegna.
+    // --- Sensor continuity ---
+    // We don't use arrival times (Windows delivers packets in batches) but counts:
+    // every packet is one poll of the mouse, so at constant speed it carries the same
+    // movement as its neighbours, regardless of when Windows delivers it.
     const double mag = std::hypot(double(e.dx), double(e.dy));
     if (!continuous) {
         windowCount_ = 0;
         lastDx_ = lastDy_ = 0;
     }
 
-    // Inversione: due pacchetti consecutivi veloci in direzioni opposte. A 1000 Hz e oltre
-    // il mouse non può fermarsi e ripartire all'indietro tra un poll e l'altro.
+    // Reversal: two consecutive fast packets in opposite directions. At 1000 Hz and above
+    // the mouse cannot stop and move backwards between one poll and the next.
     const double lastMag = std::hypot(double(lastDx_), double(lastDy_));
     const double dot = double(e.dx) * lastDx_ + double(e.dy) * lastDy_;
     const double minMag = std::max(3.0, 0.5 * speedEma_);
@@ -70,10 +70,10 @@ void Analyzer::processMotion(const MouseEvent& e) {
 }
 
 void Analyzer::checkContinuity() {
-    constexpr double kMinCounts = 6.0;   // sotto, l'arrotondamento dei count falsa i rapporti
-    constexpr double kSteady = 1.6;      // i vicini devono essere regolari tra loro
-    constexpr double kSpike = 1.6;       // rapporto oltre cui il pacchetto è anomalo
-    constexpr double kDip = 0.45;        // rapporto sotto cui il pacchetto è anomalo
+    constexpr double kMinCounts = 6.0;   // below this, count rounding skews the ratios
+    constexpr double kSteady = 1.6;      // the neighbours must be consistent with each other
+    constexpr double kSpike = 1.6;       // ratio above which the packet is anomalous
+    constexpr double kDip = 0.45;        // ratio below which the packet is anomalous
     constexpr double kMultipleTol = 0.25;
 
     const Sample& c = window_[2];
@@ -81,13 +81,13 @@ void Analyzer::checkContinuity() {
     const float lo = *std::min_element(nb, nb + 4);
     const float hi = *std::max_element(nb, nb + 4);
     const double avg = (nb[0] + nb[1] + nb[2] + nb[3]) / 4.0;
-    if (avg < kMinCounts || lo <= 0 || hi / lo > kSteady) return; // movimento troppo lento o irregolare
+    if (avg < kMinCounts || lo <= 0 || hi / lo > kSteady) return; // movement too slow or irregular
 
     ++checkedPackets;
     const double r = c.mag / avg;
     const double k = std::round(r);
     if (k >= 2 && k <= 4 && std::fabs(r - k) <= kMultipleTol) {
-        // Il pacchetto porta il movimento di k poll: i k-1 precedenti non sono arrivati.
+        // The packet carries the movement of k polls: the previous k-1 never arrived.
         skippedEstimate += uint64_t(k) - 1;
         marks_.push({c.x, c.y, MarkKind::Skipped});
     } else if (r >= kSpike) {
@@ -127,7 +127,7 @@ void Analyzer::processButtons(const MouseEvent& e) {
     if (f & RI_MOUSE_WHEEL) {
         const int dir = e.wheel > 0 ? 1 : -1;
         if (e.wheel > 0) wheelUp += e.wheel; else wheelDown -= e.wheel;
-        // Scatto nella direzione opposta entro 40 ms: tipico encoder sporco.
+        // Notch in the opposite direction within 40 ms: typical of a dirty encoder.
         if (wheelLastDir && dir != wheelLastDir && toMs(e.qpc - wheelLastQpc) < 40.0) ++wheelReversals;
         wheelLastDir = dir;
         wheelLastQpc = e.qpc;
@@ -168,9 +168,9 @@ void Analyzer::refresh(int64_t nowQpc) {
     stats.p01Us = pct(0.01);
     stats.p99Us = pct(0.99);
 
-    // Riferimento = media, non mediana: a 8000 Hz Windows consegna i pacchetti a gruppi,
-    // la distribuzione è asimmetrica e la mediana cade sotto l'intervallo reale.
-    // La somma degli intervalli è il tempo trascorso, quindi 1/media è il rate vero.
+    // Reference = mean, not median: at 8000 Hz Windows delivers packets in batches,
+    // the distribution is skewed and the median falls below the real interval.
+    // The sum of the intervals is the elapsed time, so 1/mean is the true rate.
     size_t outliers = 0, batched = 0;
     for (float v : scratch_) {
         if (v > 1.5 * stats.meanUs) ++outliers;

@@ -1,34 +1,36 @@
 # Mouse Tester
 
-Tester per mouse ad alte prestazioni (fino a 8000 Hz e oltre) per Windows, in C++20 con Dear ImGui e DirectX 11.
+High-performance mouse tester (up to 8000 Hz and beyond) for Windows, written in C++20 with Dear ImGui and DirectX 11.
 
-## Requisiti
-- Windows 10 o 11 (64 bit)
-- **Visual Studio 2022 o successivo** (la Community è gratuita) con il carico di lavoro **"Sviluppo di applicazioni desktop con C++"**. CMake è già incluso.
-- Connessione a internet alla prima compilazione: CMake scarica Dear ImGui da GitHub.
+## Requirements
+- Windows 10 or 11 (64-bit)
+- **Visual Studio 2022 or later** (Community is free) with the **"Desktop development with C++"** workload. CMake is included.
+- Internet connection on the first build: CMake downloads Dear ImGui from GitHub.
 
-## Compilare
-**Da Visual Studio:** File → Apri → Cartella... e scegli questa cartella. Visual Studio riconosce il `CMakeLists.txt`. Scegli la configurazione `x64-Release`, poi seleziona `MouseTester.exe` come destinazione di avvio e premi F5.
+## Building
+**From Visual Studio:** File → Open → Folder... and pick this folder. Visual Studio detects `CMakeLists.txt`. Choose the `x64-Release` configuration, select `MouseTester.exe` as the startup item and press F5.
 
-**Da riga di comando** ("Developer PowerShell" di Visual Studio):
+**From the command line** (Visual Studio "Developer PowerShell"):
 ```
 cmake -B build -A x64
 cmake --build build --config Release
 build\Release\MouseTester.exe
 ```
 
-## Struttura
-| File | Contenuto |
+## Layout
+| File | Contents |
 |---|---|
-| `src/raw_input.*` | Thread di cattura: Raw Input, timestamp con QueryPerformanceCounter, nome del dispositivo HID |
-| `src/spsc_queue.hpp` | Coda lock-free tra il thread di cattura e quello dell'interfaccia |
-| `src/analyzer.*` | Statistiche: polling, jitter, continuità del sensore, DPI, chatter, rotella |
-| `src/mouse_view.*` | Disegno vettoriale del mouse con i tasti che si illuminano |
-| `src/ui.*` | Interfaccia: tema e schede |
-| `src/main.cpp` | Finestra Win32, DirectX 11, ciclo principale |
+| `src/raw_input.*` | Capture thread: Raw Input, QueryPerformanceCounter timestamps, HID device name |
+| `src/spsc_queue.hpp` | Lock-free queue between the capture thread and the UI thread |
+| `src/analyzer.*` | Statistics: polling, jitter, sensor continuity, DPI, chatter, wheel |
+| `src/mouse_view.*` | Vector drawing of the mouse with buttons that light up |
+| `src/ui.*` | UI: theme and tabs |
+| `src/main.cpp` | Win32 window, DirectX 11, main loop |
+| `res/`, `tools/make_icon.ps1` | App icon and the script that generates it |
 
-## Note sulle misure
-- Tieni la finestra **in primo piano** durante i test: alcune versioni di Windows 11 limitano l'input dei programmi in background.
-- Collega il mouse o il ricevitore **direttamente al PC**, non a un hub o al monitor.
-- Il timestamp viene preso quando Windows consegna il pacchetto, non quando il mouse lo invia. Il jitter misurato comprende quindi anche USB, driver e scheduler.
-- La latenza del click e del sensore e la lift-off distance non si possono misurare via software.
+## Measurement notes
+- Keep the window **in the foreground** during tests: some Windows 11 versions throttle input for background apps.
+- Plug the mouse or receiver **directly into the PC**, not into a hub or the monitor.
+- The polling rate is measured only while the mouse moves fast enough to fill every poll (at least 1.5 counts per packet). At 8000 Hz, use a high DPI (1600 or more).
+- The timestamp is taken when Windows delivers the packet, not when the mouse sends it. Measured jitter therefore includes USB, driver and scheduler.
+- Click latency, sensor latency and lift-off distance cannot be measured in software.

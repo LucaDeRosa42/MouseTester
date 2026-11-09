@@ -1,4 +1,4 @@
-// Mouse Tester - finestra Win32 + DirectX 11 + Dear ImGui
+// Mouse Tester - Win32 window + DirectX 11 + Dear ImGui
 #include <windows.h>
 #include <d3d11.h>
 #include <dwmapi.h>
@@ -43,15 +43,15 @@ bool CreateDeviceD3D(HWND hwnd) {
     sd.OutputWindow = hwnd;
     sd.SampleDesc.Count = 1;
     sd.Windowed = TRUE;
-    // Modello "blt": misurato, il modello "flip" non dava vantaggi e con schermi a frequenza
-    // variabile (G-Sync in finestra) faceva scendere lo schermo a ~65 Hz a mouse fermo.
+    // "Blt" model: measured, the "flip" model gave no benefit and with variable refresh rate
+    // displays (windowed G-Sync) it dropped the screen to ~65 Hz while the mouse was idle.
     sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
 
     const D3D_FEATURE_LEVEL levels[] = {D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_0};
     D3D_FEATURE_LEVEL got;
     HRESULT hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, levels, 2,
                                                D3D11_SDK_VERSION, &sd, &g_swapChain, &g_device, &got, &g_context);
-    if (hr == DXGI_ERROR_UNSUPPORTED) // nessuna GPU compatibile: rendering software
+    if (hr == DXGI_ERROR_UNSUPPORTED) // no compatible GPU: software rendering
         hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_WARP, nullptr, 0, levels, 2,
                                            D3D11_SDK_VERSION, &sd, &g_swapChain, &g_device, &got, &g_context);
     if (FAILED(hr)) return false;
@@ -75,7 +75,7 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         g_resizeH = HIWORD(lParam);
         return 0;
     case WM_SYSCOMMAND:
-        if ((wParam & 0xfff0) == SC_KEYMENU) return 0; // niente menu con ALT
+        if ((wParam & 0xfff0) == SC_KEYMENU) return 0; // no ALT menu
         break;
     case WM_DESTROY:
         PostQuitMessage(0);
@@ -98,7 +98,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInstance;
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-    // Icona grande (Alt+Tab, barra delle applicazioni) e piccola (barra del titolo)
+    // Large icon (Alt+Tab, taskbar) and small icon (title bar)
     wc.hIcon = static_cast<HICON>(LoadImageW(hInstance, MAKEINTRESOURCEW(IDI_APP), IMAGE_ICON,
                                              GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), 0));
     wc.hIconSm = static_cast<HICON>(LoadImageW(hInstance, MAKEINTRESOURCEW(IDI_APP), IMAGE_ICON,
@@ -109,20 +109,20 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
     HWND hwnd = CreateWindowW(wc.lpszClassName, L"Mouse Tester", WS_OVERLAPPEDWINDOW, 100, 100,
                               int(1320 * scale), int(860 * scale), nullptr, nullptr, hInstance, nullptr);
 
-    // Barra del titolo scura (Windows 10 20H1+ / 11)
+    // Dark title bar (Windows 10 20H1+ / 11)
     BOOL dark = TRUE;
     DwmSetWindowAttribute(hwnd, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, &dark, sizeof(dark));
 
     if (!CreateDeviceD3D(hwnd)) {
         CleanupDeviceD3D();
-        MessageBoxW(nullptr, L"Impossibile inizializzare DirectX 11.", L"Mouse Tester", MB_ICONERROR);
+        MessageBoxW(nullptr, L"Could not initialize DirectX 11.", L"Mouse Tester", MB_ICONERROR);
         return 1;
     }
 
-    // Avvio della cattura
+    // Start capturing
     RawInputCapture capture;
     if (!capture.start()) {
-        MessageBoxW(nullptr, L"Impossibile registrare il Raw Input del mouse.", L"Mouse Tester", MB_ICONERROR);
+        MessageBoxW(nullptr, L"Could not register mouse Raw Input.", L"Mouse Tester", MB_ICONERROR);
         return 1;
     }
     LARGE_INTEGER freq;
@@ -161,9 +161,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
     QueryPerformanceCounter(&last);
     bool done = false;
     while (!done) {
-        // Messaggi della finestra con un limite di tempo: con un mouse a 8000 Hz Windows
-        // genera nuovi WM_MOUSEMOVE mentre li smaltiamo e il ciclo potrebbe non finire mai.
-        // Quelli rimasti vengono gestiti al frame successivo (ImGui usa solo l'ultima posizione).
+        // Window messages with a time budget: with an 8000 Hz mouse Windows keeps generating
+        // new WM_MOUSEMOVE while we process them and the loop might never end (measured:
+        // up to 475 ms per frame). Leftovers are handled next frame (ImGui only needs the last position).
         LARGE_INTEGER pumpStart, pumpNow;
         QueryPerformanceCounter(&pumpStart);
         const int64_t pumpBudget = freq.QuadPart / 500; // 2 ms
@@ -177,7 +177,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
         }
         if (done) break;
 
-        // Svuota la coda di cattura anche a finestra nascosta, così non si riempie mai
+        // Drain the capture queue even when the window is hidden, so it never fills up
         LARGE_INTEGER now;
         QueryPerformanceCounter(&now);
         MouseEvent ev;

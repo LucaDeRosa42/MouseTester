@@ -8,20 +8,20 @@
 
 #include "spsc_queue.hpp"
 
-// Un pacchetto ricevuto dal mouse, con il timestamp preso appena arrivato.
+// A packet received from the mouse, with the timestamp taken as soon as it arrived.
 struct MouseEvent {
-    int64_t  qpc = 0;          // QueryPerformanceCounter all'arrivo
-    HANDLE   device = nullptr; // dispositivo che l'ha generato
-    int32_t  dx = 0, dy = 0;   // spostamento relativo in count del sensore
+    int64_t  qpc = 0;          // QueryPerformanceCounter on arrival
+    HANDLE   device = nullptr; // device that generated it
+    int32_t  dx = 0, dy = 0;   // relative movement in sensor counts
     uint16_t buttonFlags = 0;  // RI_MOUSE_*
-    int16_t  wheel = 0;        // rotella verticale (120 = uno scatto)
-    int16_t  hwheel = 0;       // rotella orizzontale / tilt
+    int16_t  wheel = 0;        // vertical wheel (120 = one notch)
+    int16_t  hwheel = 0;       // horizontal wheel / tilt
 };
 
-// Cattura Raw Input su un thread dedicato ad alta priorità.
+// Raw Input capture on a dedicated high-priority thread.
 class RawInputCapture {
 public:
-    using Queue = SpscQueue<MouseEvent, (1u << 18)>; // ~30 s di margine a 8 kHz
+    using Queue = SpscQueue<MouseEvent, (1u << 18)>; // ~30 s of headroom at 8 kHz
 
     ~RawInputCapture() { stop(); }
 
@@ -31,7 +31,7 @@ public:
     Queue&   queue() { return queue_; }
     uint64_t dropped() const { return dropped_.load(std::memory_order_relaxed); }
 
-    // Nome leggibile del dispositivo (nome prodotto HID, oppure VID/PID).
+    // Readable device name (HID product name, or VID/PID).
     static std::string deviceName(HANDLE device);
 
 private:

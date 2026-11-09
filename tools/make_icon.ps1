@@ -1,5 +1,5 @@
-# Genera res/app.ico: mouse stilizzato con il tasto sinistro acceso, nei colori dell'app.
-# Uso: powershell -ExecutionPolicy Bypass -File tools\make_icon.ps1
+# Generates res/app.ico: a stylised mouse with the left button lit, in the app's colours.
+# Usage: powershell -ExecutionPolicy Bypass -File tools\make_icon.ps1
 Add-Type -AssemblyName System.Drawing
 
 $sizes = 16, 20, 24, 32, 40, 48, 64, 128, 256
@@ -27,23 +27,23 @@ function New-IconBitmap([int]$s) {
     $body   = [System.Drawing.Color]::FromArgb(255, 34, 38, 46)
     $bg     = [System.Drawing.Color]::FromArgb(255, 17, 18, 22)
 
-    # Sfondo: quadrato scuro arrotondato
+    # Background: dark rounded square
     $bgPath = New-RoundRect 0 0 $s $s ([single]($s * 0.22))
     $g.FillPath((New-Object System.Drawing.SolidBrush($bg)), $bgPath)
 
-    # Corpo del mouse: capsula verticale
+    # Mouse body: vertical capsule
     $mw = $s * 0.50; $mh = $s * 0.74
     $mx = ($s - $mw) / 2; $my = ($s - $mh) / 2
     $mouse = New-RoundRect $mx $my $mw $mh ([single]($mw * 0.5))
     $g.FillPath((New-Object System.Drawing.SolidBrush($body)), $mouse)
 
-    # Tasto sinistro acceso: metà superiore sinistra del corpo
+    # Lit left button: upper-left half of the body
     $split = $my + $mh * 0.42
     $g.SetClip($mouse)
     $g.FillRectangle((New-Object System.Drawing.SolidBrush($accent)), [single]$mx, [single]$my, [single]($mw / 2), [single]($split - $my))
     $g.ResetClip()
 
-    # Contorno, divisione dei tasti e rotella
+    # Outline, button split and wheel
     $penW = [single][Math]::Max(1.0, $s * 0.045)
     $pen = New-Object System.Drawing.Pen($accent, $penW)
     $g.DrawPath($pen, $mouse)
@@ -60,7 +60,7 @@ function New-IconBitmap([int]$s) {
     return $bmp
 }
 
-# File .ico con immagini PNG (supportate da Windows Vista in poi)
+# .ico file with PNG images (supported since Windows Vista)
 $pngs = foreach ($s in $sizes) {
     $bmp = New-IconBitmap $s
     $ms = New-Object System.IO.MemoryStream
@@ -85,8 +85,8 @@ for ($i = 0; $i -lt $sizes.Count; $i++) {
 foreach ($p in $pngs) { $w.Write($p) }
 $w.Close()
 
-# Anteprima a 256 px per controllare il disegno
+# 256 px preview to check the drawing
 $preview = New-IconBitmap 256
 $preview.Save((Join-Path (Split-Path $out) 'app_preview.png'), [System.Drawing.Imaging.ImageFormat]::Png)
 $preview.Dispose()
-Write-Output "Creato $out"
+Write-Output "Created $out"

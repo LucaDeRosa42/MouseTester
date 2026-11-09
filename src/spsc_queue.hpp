@@ -1,7 +1,7 @@
 #pragma once
-// Coda lock-free a singolo produttore / singolo consumatore.
-// Il thread di cattura scrive, il thread dell'interfaccia legge:
-// nessun mutex, quindi la cattura non viene mai bloccata.
+// Lock-free single-producer / single-consumer queue.
+// The capture thread writes, the UI thread reads:
+// no mutex, so capturing is never blocked.
 
 #include <atomic>
 #include <cstddef>
@@ -9,13 +9,13 @@
 
 template <typename T, size_t Capacity>
 class SpscQueue {
-    static_assert((Capacity & (Capacity - 1)) == 0, "Capacity deve essere una potenza di 2");
+    static_assert((Capacity & (Capacity - 1)) == 0, "Capacity must be a power of 2");
 
 public:
     bool push(const T& value) {
         const size_t head = head_.load(std::memory_order_relaxed);
         const size_t tail = tail_.load(std::memory_order_acquire);
-        if (head - tail == Capacity) return false; // piena
+        if (head - tail == Capacity) return false; // full
         buffer_[head & kMask] = value;
         head_.store(head + 1, std::memory_order_release);
         return true;
@@ -24,7 +24,7 @@ public:
     bool pop(T& out) {
         const size_t tail = tail_.load(std::memory_order_relaxed);
         const size_t head = head_.load(std::memory_order_acquire);
-        if (tail == head) return false; // vuota
+        if (tail == head) return false; // empty
         out = buffer_[tail & kMask];
         tail_.store(tail + 1, std::memory_order_release);
         return true;
