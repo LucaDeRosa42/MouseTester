@@ -10,6 +10,7 @@
 #include "imgui_impl_dx11.h"
 #include "imgui_impl_win32.h"
 #include "raw_input.hpp"
+#include "resource.h"
 #include "ui.hpp"
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -38,12 +39,12 @@ bool CreateDeviceD3D(HWND hwnd) {
     DXGI_SWAP_CHAIN_DESC sd{};
     sd.BufferCount = 2;
     sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    sd.BufferDesc.RefreshRate = {60, 1};
-    sd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
     sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     sd.OutputWindow = hwnd;
     sd.SampleDesc.Count = 1;
     sd.Windowed = TRUE;
+    // Modello "blt": misurato, il modello "flip" non dava vantaggi e con schermi a frequenza
+    // variabile (G-Sync in finestra) faceva scendere lo schermo a ~65 Hz a mouse fermo.
     sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
 
     const D3D_FEATURE_LEVEL levels[] = {D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_0};
@@ -97,6 +98,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInstance;
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    // Icona grande (Alt+Tab, barra delle applicazioni) e piccola (barra del titolo)
+    wc.hIcon = static_cast<HICON>(LoadImageW(hInstance, MAKEINTRESOURCEW(IDI_APP), IMAGE_ICON,
+                                             GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), 0));
+    wc.hIconSm = static_cast<HICON>(LoadImageW(hInstance, MAKEINTRESOURCEW(IDI_APP), IMAGE_ICON,
+                                               GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), 0));
     wc.lpszClassName = L"MouseTesterWindow";
     RegisterClassExW(&wc);
 
@@ -155,11 +161,19 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
     QueryPerformanceCounter(&last);
     bool done = false;
     while (!done) {
+        // Messaggi della finestra con un limite di tempo: con un mouse a 8000 Hz Windows
+        // genera nuovi WM_MOUSEMOVE mentre li smaltiamo e il ciclo potrebbe non finire mai.
+        // Quelli rimasti vengono gestiti al frame successivo (ImGui usa solo l'ultima posizione).
+        LARGE_INTEGER pumpStart, pumpNow;
+        QueryPerformanceCounter(&pumpStart);
+        const int64_t pumpBudget = freq.QuadPart / 500; // 2 ms
         MSG msg;
         while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
             TranslateMessage(&msg);
             DispatchMessageW(&msg);
             if (msg.message == WM_QUIT) done = true;
+            QueryPerformanceCounter(&pumpNow);
+            if (pumpNow.QuadPart - pumpStart.QuadPart > pumpBudget) break;
         }
         if (done) break;
 
@@ -171,6 +185,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
         analyzer->refresh(now.QuadPart);
         const double dt = double(now.QuadPart - last.QuadPart) / double(freq.QuadPart);
         last = now;
+        ui.frameMs.push(float(dt * 1000.0));
 
         if (g_occluded && g_swapChain->Present(0, DXGI_PRESENT_TEST) == DXGI_STATUS_OCCLUDED) {
             Sleep(10);

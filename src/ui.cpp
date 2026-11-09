@@ -218,14 +218,27 @@ void DrawPollingTab(Analyzer& a, UiState& s) {
     const double hz = st.meanUs > 0 ? 1e6 / st.meanUs : 0.0;
     const int nominal = NearestStandardRate(hz);
 
+    // Il numero è grigio quando la misura è in pausa: mostra l'ultimo valore valido.
+    const bool live = a.collecting();
     ImGui::PushFont(s.fontBig);
-    if (st.count > 100) ImGui::Text("%.0f Hz", hz);
+    if (st.count > 100 && live) ImGui::Text("%.0f Hz", hz);
+    else if (st.count > 100) ImGui::TextDisabled("%.0f Hz", hz);
     else ImGui::TextDisabled("--- Hz");
     ImGui::PopFont();
     ImGui::SameLine();
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + s.fontBig->FontSize * 0.35f);
-    if (nominal) ImGui::TextDisabled("nominale %d Hz", nominal);
+    if (nominal && st.count > 100) ImGui::TextDisabled("nominale %d Hz", nominal);
     else ImGui::TextDisabled("muovi il mouse velocemente in cerchio");
+
+    // Stato della misura: velocità attuale rispetto al minimo necessario.
+    const double v = a.speedPerPacket();
+    if (live)
+        ImGui::TextColored(kGood, "In misura · velocità %.1f count per pacchetto", v);
+    else if (a.moving())
+        ImGui::TextColored(kWarn, "In pausa: troppo lento (%.1f count per pacchetto, servono almeno %.1f). "
+                                  "Muovi più veloce o alza i DPI.", v, Analyzer::kFastSpeed);
+    else
+        ImGui::TextDisabled("In pausa: mouse fermo");
 
     ImGui::Spacing();
     if (ImGui::BeginTable("pstats", 4, ImGuiTableFlags_SizingStretchSame)) {
@@ -269,6 +282,8 @@ void DrawPollingTab(Analyzer& a, UiState& s) {
     YAxisMicros(maxUs, refUs);
 
     ImGui::Spacing();
+    Hint("La misura usa solo i movimenti abbastanza veloci da riempire ogni poll: almeno 1,5 count per "
+         "pacchetto. A 8000 Hz e 800 DPI vuol dire circa 38 cm/s; a 3200 DPI ne bastano circa 10.");
     Hint("Gli intervalli \"raggruppati\" sono pacchetti consegnati insieme da Windows: indicano carico "
          "di sistema o del driver USB più che un difetto del mouse. Usa un cavo/ricevitore collegato "
          "direttamente al PC, non a un hub.");
@@ -365,7 +380,15 @@ void DrawPath(const Analyzer& a, UiState& s, ImVec2 size) {
         for (size_t start = 0; start + 1 < n; start += kChunk) {
             s.pathPts.clear();
             const size_t end = std::min(n, start + kChunk + 1);
-            for (size_t i = start; i < end; ++i) s.pathPts.push_back(toScreen(path[i].x, path[i].y));
+            ImVec2 bbMin(FLT_MAX, FLT_MAX), bbMax(-FLT_MAX, -FLT_MAX);
+            for (size_t i = start; i < end; ++i) {
+                const ImVec2 q = toScreen(path[i].x, path[i].y);
+                bbMin = ImVec2(std::min(bbMin.x, q.x), std::min(bbMin.y, q.y));
+                bbMax = ImVec2(std::max(bbMax.x, q.x), std::max(bbMax.y, q.y));
+                s.pathPts.push_back(q);
+            }
+            // Blocchi interamente fuori dalla vista: non li disegniamo (utile quando si zooma).
+            if (bbMax.x < p0.x || bbMin.x > p1.x || bbMax.y < p0.y || bbMin.y > p1.y) continue;
             const ImU32 col = start + kChunk >= recent ? ImGui::ColorConvertFloat4ToU32(kAccent) : IM_COL32(60, 110, 140, 255);
             dl->AddPolyline(s.pathPts.data(), (int)s.pathPts.size(), col, 0, thick);
         }
@@ -607,6 +630,22 @@ void DrawUi(Analyzer& a, UiState& s, double deltaSeconds, uint64_t droppedPacket
 
     ImGui::SameLine();
     ImGui::BeginChild("right", ImVec2(0, 0), ImGuiChildFlags_Borders);
+    // Tempo di frame in alto a destra: media e peggiore degli ultimi frame, per vedere gli scatti.
+    if (s.frameMs.size() > 0) {
+        double sum = 0, worst = 0;
+        for (size_t i = 0; i < s.frameMs.size(); ++i) {
+            sum += s.frameMs[i];
+            worst = std::max(worst, double(s.frameMs[i]));
+        }
+        const double avg = sum / double(s.frameMs.size());
+        char t[64];
+        std::snprintf(t, sizeof(t), "frame %.1f ms · peggiore %.1f ms", avg, worst);
+        const ImVec2 ts = ImGui::CalcTextSize(t);
+        const ImVec2 wp = ImGui::GetWindowPos();
+        const ImVec2 pad = ImGui::GetStyle().WindowPadding;
+        const ImU32 col = worst > avg * 2.5 + 4.0 ? ImGui::ColorConvertFloat4ToU32(kWarn) : ImGui::GetColorU32(ImGuiCol_TextDisabled);
+        ImGui::GetWindowDrawList()->AddText(ImVec2(wp.x + ImGui::GetWindowWidth() - ts.x - pad.x, wp.y + pad.y), col, t);
+    }
     if (droppedPackets)
         ImGui::TextColored(kBad, "Attenzione: %llu pacchetti persi dalla coda interna.", (unsigned long long)droppedPackets);
     if (ImGui::BeginTabBar("tabs")) {

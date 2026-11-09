@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(MouseTester LANGUAGES CXX)
+project(MouseTester LANGUAGES CXX RC)
 
 if(NOT WIN32)
     message(FATAL_ERROR "MouseTester supporta solo Windows.")
@@ -36,12 +36,14 @@ add_executable(MouseTester WIN32
     src/analyzer.cpp
     src/mouse_view.cpp
     src/ui.cpp
+    res/app.rc
 )
+target_include_directories(MouseTester PRIVATE res)
 target_compile_definitions(MouseTester PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
 target_link_libraries(MouseTester PRIVATE imgui hid dwmapi)
 
 if(MSVC)
     # /utf-8: le stringhe dell'interfaccia contengono caratteri accentati e "µ"
-    target_compile_options(MouseTester PRIVATE /utf-8 /W3)
+    target_compile_options(MouseTester PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/utf-8 /W3>)
     set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT MouseTester)
 endif()

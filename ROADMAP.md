@@ -9,8 +9,8 @@
 ## Fase 1 — Prima compilazione
 - [x] Configurare e compilare con CMake e Visual Studio (x64-Release)
 - [x] Correggere gli errori di compilazione dello scheletro (nessuno: compila pulito con /W3)
-- [ ] La finestra si apre, ImGui disegna, il mouse vettoriale si vede
-- [ ] Il thread di cattura riceve WM_INPUT e la coda si svuota a ogni frame
+- [x] La finestra si apre, ImGui disegna, il mouse vettoriale si vede
+- [x] Il thread di cattura riceve WM_INPUT e la coda si svuota a ogni frame (~8000 pacchetti/s ricevuti)
 - [ ] I tasti del mouse disegnato si illuminano alla pressione
 
 ## Fase 2 — Polling rate affidabile
@@ -18,6 +18,10 @@
 - [x] Scale numeriche in µs e linea di riferimento sui grafici del polling
 - [ ] Verifica a 125, 500 e 1000 Hz: rate, jitter e istogramma coerenti
 - [ ] Verifica a 4000 e 8000 Hz: nessun pacchetto perso dal thread di cattura
+- [x] Interfaccia fluida a 8000 Hz: ciclo dei messaggi limitato a 2 ms (prima fino a 475 ms per frame);
+      swap chain "blt", perché "flip" faceva scendere lo schermo a ~65 Hz a mouse fermo
+- [x] Misura attiva da 1,5 count per pacchetto, con stato "in misura / in pausa" e velocità attuale
+- [x] Indicatore dei tempi di frame in alto a destra
 - [ ] Valutare GetRawInputBuffer al posto di un GetRawInputData per messaggio, se a 8000 Hz la coda dei messaggi non regge
 - [ ] Misurare quanto costa il thread di cattura (CPU) e il ritardo tra arrivo e timestamp
 - [ ] Filtro per dispositivo: scegliere quale mouse misurare quando ce ne sono più di uno
@@ -40,5 +44,6 @@
 - [ ] Tema e disegno del mouse curati
 - [ ] Scala corretta su monitor ad alta densità (DPI awareness)
 - [ ] Esportare i risultati di una sessione (CSV o testo)
-- [ ] Icona e informazioni di versione dell'eseguibile
+- [x] Icona dell'eseguibile e della finestra (`res/app.ico`, rigenerabile con `tools/make_icon.ps1`)
+- [ ] Informazioni di versione dell'eseguibile
 - [ ] Build Release distribuibile (eseguibile unico, CRT statica)

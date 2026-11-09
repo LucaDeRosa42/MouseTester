@@ -29,6 +29,8 @@ struct UiState {
         float pxPerCount = 1.0f;
     } pathView;
     std::vector<ImVec2> pathPts;
+
+    Ring<float, 240> frameMs; // durata degli ultimi frame, per il contatore degli scatti
 };
 
 void ApplyTheme(float scale);

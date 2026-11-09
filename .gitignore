@@ -3,3 +3,4 @@ out/
 .vs/
 CMakeSettings.json
 *.user
+res/app_preview.png

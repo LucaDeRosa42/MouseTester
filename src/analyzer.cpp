@@ -5,7 +5,6 @@
 
 namespace {
 constexpr double kMotionGapUs = 50'000.0; // oltre 50 ms consideriamo il mouse fermo
-constexpr double kFastSpeed = 2.0;        // count/pacchetto oltre cui il sensore deve riportare a ogni poll
 }
 
 void Analyzer::process(const MouseEvent& e) {
@@ -25,7 +24,10 @@ void Analyzer::processMotion(const MouseEvent& e) {
     // --- Polling: intervallo dal pacchetto di movimento precedente ---
     // Contiamo solo gli intervalli a mouse veloce: se il mouse è lento il sensore
     // salta dei poll (nessun movimento da riportare) e gli intervalli si allungano.
-    if (continuous && speedEma_ >= kFastSpeed) intervals_.push(float(toUs(e.qpc - lastMoveQpc_)));
+    if (continuous && speedEma_ >= kFastSpeed) {
+        intervals_.push(float(toUs(e.qpc - lastMoveQpc_)));
+        lastFastQpc_ = e.qpc;
+    }
     lastMoveQpc_ = e.qpc;
 
     // --- Tracciato e DPI ---
@@ -136,6 +138,7 @@ void Analyzer::processButtons(const MouseEvent& e) {
 }
 
 void Analyzer::refresh(int64_t nowQpc) {
+    nowQpc_ = nowQpc;
     const int64_t oneSecond = int64_t(freq_);
     while (!lastSecond_.empty() && nowQpc - lastSecond_.front() > oneSecond) lastSecond_.pop_front();
     packetsLastSecond = double(lastSecond_.size());
@@ -189,7 +192,7 @@ void Analyzer::histogram(int bins, double maxUs, std::vector<float>& out) const 
 void Analyzer::resetPolling() {
     intervals_.clear();
     lastSecond_.clear();
-    lastMoveQpc_ = 0;
+    lastMoveQpc_ = lastFastQpc_ = 0;
     movePackets = 0;
     stats = IntervalStats{};
 }

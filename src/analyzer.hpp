@@ -72,6 +72,15 @@ public:
     const Ring<PathPoint, kPath>& path() const { return path_; }
     const Ring<SensorMark, 1024>& marks() const { return marks_; }
 
+    // Velocità minima perché ogni poll contenga movimento: sotto, il sensore salta dei poll
+    // (non ha nulla da riportare) e gli intervalli misurati non sono più il polling rate.
+    static constexpr double kFastSpeed = 1.5; // count per pacchetto
+
+    // Stato della misura del polling, per l'interfaccia.
+    bool   moving() const { return lastMoveQpc_ && nowQpc_ - lastMoveQpc_ < int64_t(freq_ * 0.25); }
+    bool   collecting() const { return lastFastQpc_ && nowQpc_ - lastFastQpc_ < int64_t(freq_ * 0.25); }
+    double speedPerPacket() const { return speedEma_; } // count per pacchetto, media recente
+
     // --- Impostazioni ---
     HANDLE deviceFilter = nullptr; // nullptr = tutti i dispositivi
     double chatterThresholdMs = 30.0;
@@ -106,6 +115,8 @@ private:
 
     double freq_;
     int64_t lastMoveQpc_ = 0;
+    int64_t lastFastQpc_ = 0; // ultimo intervallo registrato (mouse abbastanza veloce)
+    int64_t nowQpc_ = 0;      // istante dell'ultimo refresh()
     double speedEma_ = 0;  // velocità media recente in count/pacchetto
     int32_t lastDx_ = 0, lastDy_ = 0;
     float posX_ = 0, posY_ = 0;

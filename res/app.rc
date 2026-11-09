@@ -1,0 +1,4 @@
+// Risorse dell'eseguibile. L'icona si rigenera con tools\make_icon.ps1.
+#include "resource.h"
+
+IDI_APP ICON "app.ico"
