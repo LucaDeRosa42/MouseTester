@@ -64,8 +64,6 @@ public:
     void resetButtons();
     void resetAll() { resetPolling(); resetSensor(); resetButtons(); }
 
-    void dpiStart() { dpiActive = true; dpiSumX = dpiSumY = 0; }
-    void dpiStop()  { dpiActive = false; }
 
     void histogram(int bins, double maxUs, std::vector<float>& out) const;
     const Ring<float, kIntervals>& intervals() const { return intervals_; }
@@ -104,8 +102,14 @@ public:
     int64_t  wheelLastQpc = 0;
     int      wheelLastDir = 0;
 
-    bool   dpiActive = false;
+    // DPI measurement in passes. The UI arms it while the cursor is over the measuring pad;
+    // a pass starts on the raw left-button press and ends on the raw release, so its
+    // boundaries are exact to the packet.
+    struct DpiPass { double x, y; };
+    bool   dpiArmed = false;  // set by the UI every frame
+    bool   dpiActive = false; // a pass is being recorded
     double dpiSumX = 0, dpiSumY = 0;
+    std::vector<DpiPass> dpiPasses;
 
 private:
     void processMotion(const MouseEvent& e);

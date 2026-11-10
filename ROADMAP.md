@@ -17,14 +17,14 @@
 - [x] Rate calcolato dalla media degli intervalli e non dalla mediana (a 8000 Hz segnava ~11000 Hz)
 - [x] Scale numeriche in µs e linea di riferimento sui grafici del polling
 - [ ] Verifica a 125, 500 e 1000 Hz: rate, jitter e istogramma coerenti
-- [ ] Verifica a 4000 e 8000 Hz: nessun pacchetto perso dal thread di cattura
+- [x] Verifica a 4000 e 8000 Hz: nessun pacchetto perso dal thread di cattura (verificato dall'utente)
 - [x] Interfaccia fluida a 8000 Hz: ciclo dei messaggi limitato a 2 ms (prima fino a 475 ms per frame);
       swap chain "blt", perché "flip" faceva scendere lo schermo a ~65 Hz a mouse fermo
 - [x] Misura attiva da 1,5 count per pacchetto, con stato "in misura / in pausa" e velocità attuale
 - [x] Indicatore dei tempi di frame in alto a destra
-- [ ] Valutare GetRawInputBuffer al posto di un GetRawInputData per messaggio, se a 8000 Hz la coda dei messaggi non regge
+- [x] Valutare GetRawInputBuffer: non serve, a 8000 Hz la coda dei messaggi regge senza perdite
 - [ ] Misurare quanto costa il thread di cattura (CPU) e il ritardo tra arrivo e timestamp
-- [ ] Filtro per dispositivo: scegliere quale mouse misurare quando ce ne sono più di uno
+- [x] Filtro per dispositivo: menu in alto a sinistra, con il numero di pacchetti per dispositivo
 - [ ] Confronto dei risultati con un altro tester noto
 
 ## Fase 3 — Sensore e DPI
@@ -32,7 +32,8 @@
 - [x] Tracciato con zoom, spostamento, punti dei singoli pacchetti e anomalie segnate
 - [ ] Taratura delle soglie per pacchetti mancanti, picchi, cali e inversioni
 - [ ] Tracciato per l'angle snapping: linee orizzontali e diagonali leggibili
-- [ ] Misura DPI guidata: distanza nota (righello o tappetino), più passate, media e scarto
+- [x] Misura DPI guidata: distanza nota (cm o pollici), passate col tasto sinistro premuto sull'area di misura,
+      media, dispersione, min/max, angolo di ogni passata
 - [ ] Verifica della misura DPI ai valori impostati nel software del mouse
 
 ## Fase 4 — Click e rotella

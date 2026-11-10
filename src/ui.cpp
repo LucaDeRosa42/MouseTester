@@ -466,45 +466,131 @@ void DrawSensorTab(Analyzer& a, UiState& s) {
 }
 
 // ---------------------------------------------------------------- DPI tab
+// Colour for a deviation from the DPI set on the mouse.
+const ImVec4* DeviationColor(double pct) {
+    return std::fabs(pct) < 2 ? &kGood : std::fabs(pct) < 5 ? &kWarn : &kBad;
+}
+
 void DrawDpiTab(Analyzer& a, UiState& s) {
-    Hint("1. Place a ruler on the mousepad.  2. Press Start.  3. Move the mouse in a straight line over "
-         "the given distance.  4. Press Stop. Repeat several times and take the average.");
+    Hint("1. Lay a ruler (or the edge of the mousepad) and enter its length.  2. Put the mouse at the start "
+         "mark and the cursor over the pad below.  3. Hold the left button, slide the mouse in a straight line "
+         "to the end mark, release.  Repeat 5-10 times: every release adds a pass.");
     ImGui::Spacing();
 
+    // --- Settings ---
     ImGui::SetNextItemWidth(160.0f * s.scale);
-    ImGui::InputFloat("Distance travelled (cm)", &s.dpiDistanceCm, 1.0f, 5.0f, "%.1f");
-    s.dpiDistanceCm = std::max(s.dpiDistanceCm, 0.5f);
+    ImGui::InputFloat("##distance", &s.dpiDistance, 1.0f, 5.0f, "%.2f");
+    s.dpiDistance = std::max(s.dpiDistance, 0.5f);
+    ImGui::SameLine();
+    int unit = s.dpiInches ? 1 : 0;
+    ImGui::SetNextItemWidth(70.0f * s.scale);
+    if (ImGui::Combo("Distance##unit", &unit, "cm\0in\0")) s.dpiInches = unit == 1;
+    ImGui::SameLine(0, 30.0f * s.scale);
     ImGui::SetNextItemWidth(160.0f * s.scale);
     ImGui::InputInt("DPI set on the mouse", &s.dpiConfigured, 100, 400);
     s.dpiConfigured = std::max(s.dpiConfigured, 1);
+    const double inches = s.dpiInches ? s.dpiDistance : s.dpiDistance / 2.54;
 
+    // --- Measuring pad ---
     ImGui::Spacing();
-    if (!a.dpiActive) {
-        if (ImGui::Button("Start measuring", ImVec2(180.0f * s.scale, 0))) a.dpiStart();
-    } else {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.55f, 0.20f, 0.20f, 1.0f));
-        if (ImGui::Button("Stop measuring", ImVec2(180.0f * s.scale, 0))) a.dpiStop();
-        ImGui::PopStyleColor();
-        ImGui::SameLine();
-        ImGui::TextColored(kAccent, "recording...");
-    }
+    const ImVec2 padSize(ImGui::GetContentRegionAvail().x, 110.0f * s.scale);
+    const ImVec2 p0 = ImGui::GetCursorScreenPos();
+    const ImVec2 p1(p0.x + padSize.x, p0.y + padSize.y);
+    ImGui::InvisibleButton("##dpipad", padSize);
+    const bool hovered = ImGui::IsItemHovered();
+    a.dpiArmed = hovered; // the raw left-button press decides when the pass really starts
 
-    const double counts = std::hypot(a.dpiSumX, a.dpiSumY);
-    const double dpi = counts / (s.dpiDistanceCm / 2.54);
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const ImU32 accent = ImGui::ColorConvertFloat4ToU32(kAccent);
+    const ImU32 border = a.dpiActive ? accent : hovered ? ImGui::GetColorU32(ImGuiCol_Text, 0.5f)
+                                                         : ImGui::GetColorU32(ImGuiCol_Border);
+    dl->AddRectFilled(p0, p1, a.dpiActive ? IM_COL32(20, 40, 55, 255) : IM_COL32(14, 15, 18, 255), 8.0f);
+    dl->AddRect(p0, p1, border, 8.0f, 0, a.dpiActive ? 2.0f : 1.0f);
+    char t[96];
+    if (a.dpiActive) {
+        const double counts = std::hypot(a.dpiSumX, a.dpiSumY);
+        std::snprintf(t, sizeof(t), "Recording...  %.0f counts  (%.0f DPI so far)", counts, counts / inches);
+    } else {
+        std::snprintf(t, sizeof(t), hovered ? "Hold the left button and slide along the ruler"
+                                            : "Move the cursor here to measure");
+    }
+    const ImVec2 ts = ImGui::CalcTextSize(t);
+    dl->AddText(ImVec2((p0.x + p1.x - ts.x) * 0.5f, (p0.y + p1.y - ts.y) * 0.5f),
+                a.dpiActive ? accent : ImGui::GetColorU32(ImGuiCol_TextDisabled), t);
+
+    // --- Results ---
+    const size_t n = a.dpiPasses.size();
+    double mean = 0, sd = 0, lo = 0, hi = 0;
+    if (n > 0) {
+        lo = DBL_MAX; hi = -DBL_MAX;
+        for (const auto& p : a.dpiPasses) {
+            const double d = std::hypot(p.x, p.y) / inches;
+            mean += d; lo = std::min(lo, d); hi = std::max(hi, d);
+        }
+        mean /= double(n);
+        for (const auto& p : a.dpiPasses) {
+            const double d = std::hypot(p.x, p.y) / inches - mean;
+            sd += d * d;
+        }
+        sd = n > 1 ? std::sqrt(sd / double(n - 1)) : 0.0;
+    }
+    const double dev = n ? 100.0 * (mean - s.dpiConfigured) / s.dpiConfigured : 0.0;
+
     ImGui::Spacing();
     ImGui::PushFont(s.fontBig);
-    if (counts > 0) ImGui::Text("%.0f DPI", dpi);
+    if (n) ImGui::Text("%.0f DPI", mean);
     else ImGui::TextDisabled("--- DPI");
     ImGui::PopFont();
+    ImGui::SameLine();
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + s.fontBig->FontSize * 0.35f);
+    if (n) ImGui::TextDisabled("average of %zu pass%s", n, n == 1 ? "" : "es");
+    else ImGui::TextDisabled("no passes yet");
 
-    if (ImGui::BeginTable("dstats", 3, ImGuiTableFlags_SizingStretchSame)) {
-        StatF("Counts X", "%.0f", a.dpiSumX);
-        StatF("Counts Y", "%.0f", a.dpiSumY);
-        const double dev = counts > 0 ? 100.0 * (dpi - s.dpiConfigured) / s.dpiConfigured : 0.0;
-        const ImVec4* c = std::fabs(dev) < 2 ? &kGood : std::fabs(dev) < 5 ? &kWarn : &kBad;
-        StatF("Deviation from set DPI", "%+.1f %%", dev, counts > 0 ? c : nullptr);
+    if (ImGui::BeginTable("dstats", 4, ImGuiTableFlags_SizingStretchSame)) {
+        StatF("Deviation from set DPI", "%+.1f %%", dev, n ? DeviationColor(dev) : nullptr);
+        // Spread between passes: tells how repeatable the hand movement was.
+        const double sdPct = n > 1 && mean > 0 ? 100.0 * sd / mean : 0.0;
+        StatF("Spread (std. dev.)", "%.1f %%", sdPct, n > 1 ? (sdPct < 1 ? &kGood : sdPct < 3 ? &kWarn : &kBad) : nullptr);
+        char buf[64];
+        std::snprintf(buf, sizeof(buf), "%.0f / %.0f", lo, hi);
+        Stat("Min / Max", buf);
+        StatF("Passes", "%.0f", double(n));
         ImGui::EndTable();
     }
+
+    if (n && ImGui::BeginTable("passes", 6, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchSame |
+                                                  ImGuiTableFlags_ScrollY,
+                               ImVec2(0, std::clamp(ImGui::GetContentRegionAvail().y - ImGui::GetFrameHeightWithSpacing() * 1.5f,
+                                                    ImGui::GetTextLineHeightWithSpacing() * 4.0f,
+                                                    ImGui::GetTextLineHeightWithSpacing() * 11.0f)))) {
+        ImGui::TableSetupScrollFreeze(0, 1);
+        ImGui::TableSetupColumn("#");
+        ImGui::TableSetupColumn("Counts X");
+        ImGui::TableSetupColumn("Counts Y");
+        ImGui::TableSetupColumn("Angle");
+        ImGui::TableSetupColumn("DPI");
+        ImGui::TableSetupColumn("Deviation");
+        ImGui::TableHeadersRow();
+        for (size_t i = n; i-- > 0;) { // newest first
+            const auto& p = a.dpiPasses[i];
+            const double d = std::hypot(p.x, p.y) / inches;
+            const double dv = 100.0 * (d - s.dpiConfigured) / s.dpiConfigured;
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn(); ImGui::Text("%zu", i + 1);
+            ImGui::TableNextColumn(); ImGui::Text("%.0f", p.x);
+            ImGui::TableNextColumn(); ImGui::Text("%.0f", p.y);
+            // Angle of the stroke: a pass far from horizontal/vertical suggests a crooked movement.
+            ImGui::TableNextColumn(); ImGui::Text("%.1f°", std::atan2(-p.y, p.x) * 180.0 / 3.14159265358979);
+            ImGui::TableNextColumn(); ImGui::Text("%.0f", d);
+            ImGui::TableNextColumn(); ImGui::TextColored(*DeviationColor(dv), "%+.1f %%", dv);
+        }
+        ImGui::EndTable();
+    }
+
+    ImGui::Spacing();
+    if (ImGui::Button("Remove last pass") && n) a.dpiPasses.pop_back();
+    ImGui::SameLine();
+    if (ImGui::Button("Clear passes")) a.dpiPasses.clear();
 }
 
 // ---------------------------------------------------------------- clicks & wheel tab
@@ -645,6 +731,7 @@ void DrawUi(Analyzer& a, UiState& s, double deltaSeconds, uint64_t droppedPacket
         const ImU32 col = worst > avg * 2.5 + 4.0 ? ImGui::ColorConvertFloat4ToU32(kWarn) : ImGui::GetColorU32(ImGuiCol_TextDisabled);
         ImGui::GetWindowDrawList()->AddText(ImVec2(wp.x + ImGui::GetWindowWidth() - ts.x - pad.x, wp.y + pad.y), col, t);
     }
+    a.dpiArmed = false; // re-armed by the DPI tab only while the cursor is over its pad
     if (droppedPackets)
         ImGui::TextColored(kBad, "Warning: %llu packets lost by the internal queue.", (unsigned long long)droppedPackets);
     if (ImGui::BeginTabBar("tabs")) {

@@ -15,7 +15,8 @@ struct UiState {
     int64_t seenWheelQpc = 0;
     std::unordered_map<HANDLE, std::string> deviceNames;
 
-    float dpiDistanceCm = 10.0f;
+    float dpiDistance = 10.0f;  // in cm or inches, depending on dpiInches
+    bool  dpiInches = false;
     int   dpiConfigured = 1600;
 
     std::vector<float> histogram;

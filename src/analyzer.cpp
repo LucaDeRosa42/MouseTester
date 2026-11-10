@@ -102,6 +102,16 @@ void Analyzer::checkContinuity() {
 void Analyzer::processButtons(const MouseEvent& e) {
     const uint16_t f = e.buttonFlags;
 
+    // DPI pass: left button down starts it (only over the pad), left button up ends it.
+    if ((f & RI_MOUSE_LEFT_BUTTON_DOWN) && dpiArmed && !dpiActive) {
+        dpiActive = true;
+        dpiSumX = dpiSumY = 0;
+    }
+    if ((f & RI_MOUSE_LEFT_BUTTON_UP) && dpiActive) {
+        dpiActive = false;
+        if (dpiSumX != 0 || dpiSumY != 0) dpiPasses.push_back({dpiSumX, dpiSumY});
+    }
+
     // RI_MOUSE_BUTTON_n_DOWN = 1 << (2n), RI_MOUSE_BUTTON_n_UP = 1 << (2n+1)
     for (int i = 0; i < 5; ++i) {
         ButtonInfo& b = buttons[i];
