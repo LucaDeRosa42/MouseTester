@@ -31,9 +31,14 @@ void Analyzer::processMotion(const MouseEvent& e) {
     lastMoveQpc_ = e.qpc;
 
     // --- Path and DPI ---
+    if (!continuous) { // a pause starts a new stroke, beginning where the mouse was
+        stroke_ = StrokeSums{};
+        strokeAdd(posX_, posY_);
+    }
     posX_ += float(e.dx);
     posY_ += float(e.dy);
     path_.push({posX_, posY_});
+    strokeAdd(posX_, posY_);
     if (dpiActive) {
         dpiSumX += e.dx;
         dpiSumY += e.dy;
@@ -190,6 +195,48 @@ void Analyzer::refresh(int64_t nowQpc) {
     stats.batchedPct = 100.0 * double(batched) / double(n);
 }
 
+void Analyzer::strokeAdd(double x, double y) {
+    StrokeSums& s = stroke_;
+    if (s.n == 0) { s.ox = x; s.oy = y; }
+    const double rx = x - s.ox, ry = y - s.oy;
+    s.n += 1; s.sx += rx; s.sy += ry;
+    s.sxx += rx * rx; s.syy += ry * ry; s.sxy += rx * ry;
+    s.ex = rx; s.ey = ry;
+}
+
+StrokeFit Analyzer::strokeFit() const {
+    constexpr double kMinLength = 100.0; // counts: shorter strokes say nothing about snapping
+    const StrokeSums& s = stroke_;
+    StrokeFit f;
+    f.points = size_t(s.n);
+    if (s.n < 3) return f;
+
+    // Principal axis of the points (orthogonal regression, works for vertical lines too).
+    const double mx = s.sx / s.n, my = s.sy / s.n;
+    const double cxx = s.sxx / s.n - mx * mx, cyy = s.syy / s.n - my * my, cxy = s.sxy / s.n - mx * my;
+    const double theta = 0.5 * std::atan2(2.0 * cxy, cxx - cyy);
+    const double ux = std::cos(theta), uy = std::sin(theta);
+    const double half = 0.5 * (cxx - cyy);
+    const double minorVar = 0.5 * (cxx + cyy) - std::sqrt(half * half + cxy * cxy);
+    f.rmsDev = std::sqrt(std::max(0.0, minorVar));
+
+    // Ends: first and last point projected on the line.
+    const double t0 = (0 - mx) * ux + (0 - my) * uy;
+    const double t1 = (s.ex - mx) * ux + (s.ey - my) * uy;
+    f.length = std::fabs(t1 - t0);
+    f.cx = s.ox + mx;                f.cy = s.oy + my;
+    f.x0 = f.cx + t0 * ux;           f.y0 = f.cy + t0 * uy;
+    f.x1 = f.cx + t1 * ux;           f.y1 = f.cy + t1 * uy;
+
+    // Angle with y pointing up, folded into (-90, 90].
+    double deg = std::atan2(-uy, ux) * 180.0 / 3.14159265358979;
+    if (deg > 90.0) deg -= 180.0;
+    if (deg <= -90.0) deg += 180.0;
+    f.angleDeg = deg;
+    f.valid = f.length >= kMinLength;
+    return f;
+}
+
 double Analyzer::passDpi(const DpiPass& p, double inches) const {
     return std::hypot(p.x, p.y) / inches;
 }
@@ -230,6 +277,7 @@ void Analyzer::resetPolling() {
 void Analyzer::resetSensor() {
     path_.clear();
     marks_.clear();
+    stroke_ = StrokeSums{};
     windowCount_ = 0;
     posX_ = posY_ = 0;
     checkedPackets = skippedEstimate = spikes = dips = reversals = 0;

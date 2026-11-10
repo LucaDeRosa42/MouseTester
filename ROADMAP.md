@@ -11,7 +11,7 @@
 - [x] Correggere gli errori di compilazione dello scheletro (nessuno: compila pulito con /W3)
 - [x] La finestra si apre, ImGui disegna, il mouse vettoriale si vede
 - [x] Il thread di cattura riceve WM_INPUT e la coda si svuota a ogni frame (~8000 pacchetti/s ricevuti)
-- [ ] I tasti del mouse disegnato si illuminano alla pressione
+- [x] I tasti del mouse disegnato si illuminano alla pressione
 
 ## Fase 2 — Polling rate affidabile
 - [x] Rate calcolato dalla media degli intervalli e non dalla mediana (a 8000 Hz segnava ~11000 Hz)
@@ -23,7 +23,9 @@
 - [x] Misura attiva da 1,5 count per pacchetto, con stato "in misura / in pausa" e velocità attuale
 - [x] Indicatore dei tempi di frame in alto a destra
 - [x] Valutare GetRawInputBuffer: non serve, a 8000 Hz la coda dei messaggi regge senza perdite
-- [ ] Misurare quanto costa il thread di cattura (CPU) e il ritardo tra arrivo e timestamp
+- [x] CPU del thread di cattura a 8000 Hz: tra il 2% e il 22% di un core (meno dell'1% della CPU totale);
+      la misura di Windows è a campionamento e varia molto da prova a prova
+- [ ] Misura precisa con QueryThreadCycleTime dentro l'app e ritardo tra arrivo e timestamp
 - [x] Filtro per dispositivo: menu in alto a sinistra, con il numero di pacchetti per dispositivo
 - [ ] Confronto dei risultati con un altro tester noto
 
@@ -31,7 +33,9 @@
 - [x] Continuità valutata sui count di ogni pacchetto rispetto ai 4 vicini, non sui tempi di arrivo
 - [x] Tracciato con zoom, spostamento, punti dei singoli pacchetti e anomalie segnate
 - [ ] Taratura delle soglie per pacchetti mancanti, picchi, cali e inversioni
-- [ ] Tracciato per l'angle snapping: linee orizzontali e diagonali leggibili
+- [x] Angle snapping: retta dell'ultimo tratto (angolo, scostamento RMS), guide a 0/45/90/135°,
+      avviso se il tratto è lungo, quasi perfetto e su una guida (verificato con tratti sintetici)
+- [x] Spiegazioni al passaggio del mouse sui contatori del sensore
 - [x] Misura DPI guidata: distanza nota (cm o pollici), passate col tasto sinistro premuto sull'area di misura,
       media, dispersione, min/max, angolo di ogni passata
 - [ ] Verifica della misura DPI ai valori impostati nel software del mouse

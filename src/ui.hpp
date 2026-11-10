@@ -26,6 +26,7 @@ struct UiState {
     struct PathView {
         bool  autoFit = true;      // fit the view every frame
         bool  recentOnly = false;  // fit only the recent movements
+        bool  guides = true;       // 0/45/90/135° guides and best-fit line of the last stroke
         float centerX = 0, centerY = 0;
         float pxPerCount = 1.0f;
     } pathView;

@@ -452,6 +452,21 @@ void DrawPath(const Analyzer& a, UiState& s, ImVec2 size) {
         }
     }
 
+    // Angle snapping: guides through the start of the last stroke and its best-fit line.
+    const StrokeFit fit = a.strokeFit();
+    if (v.guides && fit.valid) {
+        const ImU32 guide = IM_COL32(255, 255, 255, 28);
+        const double reach = 1e6; // long enough to cross the whole view at any zoom
+        for (int deg = 0; deg < 180; deg += 45) {
+            const double r = deg * 3.14159265358979 / 180.0;
+            const double gx = std::cos(r) * reach, gy = -std::sin(r) * reach;
+            dl->AddLine(toScreen(float(fit.x0 - gx), float(fit.y0 - gy)), toScreen(float(fit.x0 + gx), float(fit.y0 + gy)),
+                        guide, 1.0f);
+        }
+        dl->AddLine(toScreen(float(fit.x0), float(fit.y0)), toScreen(float(fit.x1), float(fit.y1)),
+                    IM_COL32(255, 255, 255, 200), 1.5f);
+    }
+
     // Sensor anomalies highlighted on the path.
     const auto& marks = a.marks();
     for (size_t i = 0; i < marks.size(); ++i) {
@@ -491,6 +506,36 @@ void DrawSensorTab(Analyzer& a, UiState& s) {
         Stat("Reversals", buf, color(a.reversals), kMarkTips[3]);
         ImGui::EndTable();
     }
+    // Last stroke: angle and straightness, to spot angle snapping.
+    const StrokeFit fit = a.strokeFit();
+    ImGui::Spacing();
+    if (fit.valid) {
+        const double nearest = std::round(fit.angleDeg / 45.0) * 45.0;
+        const double off = fit.angleDeg - nearest;
+        const double devPct = 100.0 * fit.rmsDev / fit.length;
+        // Very straight and right on a guide: likely snapping. Thresholds are deliberately strict,
+        // a hand on a long stroke always wobbles by more than this.
+        const bool suspect = fit.length >= 1000 && fit.rmsDev < 1.0 && std::fabs(off) < 0.5;
+        ImGui::BeginGroup();
+        ImGui::TextDisabled("Last stroke:");
+        ImGui::SameLine();
+        ImGui::Text("%.0f counts at %.1f°  ·  deviation %.1f counts RMS (%.2f %%)  ·  nearest guide %.0f° (%+.1f°)",
+                    fit.length, fit.angleDeg, fit.rmsDev, devPct, nearest == -90.0 ? 90.0 : nearest, off);
+        if (suspect) {
+            ImGui::SameLine();
+            ImGui::TextColored(kWarn, "  possible angle snapping");
+        }
+        ImGui::EndGroup();
+        Explain("Last stroke\n\n"
+                "The path between two pauses is fitted with a straight line. Deviation is how far, on average, "
+                "the points are from that line.\n\n"
+                "To check for angle snapping, draw slow freehand lines close to 0°, 45° and 90°. A hand always "
+                "wobbles by a few counts over a long stroke; if the deviation is close to zero and the angle "
+                "sits exactly on a guide, the mouse is straightening the line (angle snapping is on).");
+    } else {
+        ImGui::TextDisabled("Last stroke: draw a line of at least 100 counts to measure its angle and straightness.");
+    }
+
     ImGui::Spacing();
     SectionTitle("Path");
 
@@ -499,6 +544,8 @@ void DrawSensorTab(Analyzer& a, UiState& s) {
     if (ImGui::Button("Fit")) v.autoFit = true;
     ImGui::SameLine();
     if (ImGui::Checkbox("Recent movements only", &v.recentOnly)) v.autoFit = true;
+    ImGui::SameLine();
+    ImGui::Checkbox("Snapping guides", &v.guides);
     ImGui::SameLine();
     ImGui::TextDisabled("  zoom %.2f px/count%s", v.pxPerCount, v.autoFit ? " (auto)" : "");
     const char* markNames[4] = {"missing", "spike", "dip", "reversal"};
@@ -513,8 +560,8 @@ void DrawSensorTab(Analyzer& a, UiState& s) {
     Hint("Wheel over the path: zoom. Drag: pan. Double click: fit. Up close, every dot is one packet.");
     Hint("Continuity: move the mouse fast and steadily. Every packet is compared with its 4 neighbours: if it "
          "carries 2-4 times their movement, packets are missing; if it carries much more or much less, it is a "
-         "spike or a dip. With a healthy sensor the counters stay at zero. Angle snapping: draw diagonals "
-         "freehand; if they come out perfectly straight, snapping is on. The path uses raw sensor counts, "
+         "spike or a dip. With a healthy sensor the counters stay at zero. Angle snapping: draw slow freehand "
+         "lines near 0°, 45° and 90° and read \"Last stroke\" above. The path uses raw sensor counts, "
          "without Windows acceleration.");
     if (ImGui::Button("Reset sensor")) a.resetSensor();
 }

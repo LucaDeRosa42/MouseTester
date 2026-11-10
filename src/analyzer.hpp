@@ -59,6 +59,18 @@ struct DpiSummary {
     double mean = 0, stddev = 0, min = 0, max = 0; // DPI
 };
 
+// Best-fit line of the most recent stroke (continuous movement between two pauses),
+// used to spot angle snapping: freehand strokes always wobble by a few counts.
+struct StrokeFit {
+    bool   valid = false;
+    size_t points = 0;
+    double angleDeg = 0;  // direction of the line, in (-90, 90], 0 = horizontal, positive = up-right
+    double length = 0;    // extent along the line, in counts
+    double rmsDev = 0;    // RMS distance of the points from the line, in counts
+    double cx = 0, cy = 0;            // centre of the line (path coordinates)
+    double x0 = 0, y0 = 0, x1 = 0, y1 = 0; // ends of the line (path coordinates)
+};
+
 struct PathPoint { float x, y; };
 
 // Anomalous point of the path, to highlight it in the drawing.
@@ -85,6 +97,7 @@ public:
     const Ring<float, kIntervals>& intervals() const { return intervals_; }
     const Ring<PathPoint, kPath>& path() const { return path_; }
     const Ring<SensorMark, 1024>& marks() const { return marks_; }
+    StrokeFit strokeFit() const; // best-fit line of the most recent stroke
 
     // Minimum speed for every poll to contain movement: below it the sensor skips polls
     // (it has nothing to report) and the measured intervals are no longer the polling rate.
@@ -153,6 +166,14 @@ private:
     std::array<Sample, 5> window_{};
     size_t windowCount_ = 0;
     void checkContinuity();
+    // Running sums of the current stroke, relative to its first point (keeps precision).
+    struct StrokeSums {
+        double n = 0, sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0;
+        double ox = 0, oy = 0;         // first point
+        double ex = 0, ey = 0;         // last point, relative to the first
+    } stroke_;
+    void strokeAdd(double x, double y);
+
     std::deque<int64_t> lastSecond_;
     std::vector<float> scratch_;
 };
