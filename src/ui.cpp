@@ -1,5 +1,8 @@
 #include "ui.hpp"
 
+#include "export.hpp"
+#include "resource.h"
+
 #include <algorithm>
 #include <cfloat>
 #include <cmath>
@@ -11,16 +14,6 @@ const ImVec4 kAccent(0.30f, 0.76f, 1.00f, 1.00f);
 const ImVec4 kGood(0.35f, 0.85f, 0.55f, 1.00f);
 const ImVec4 kWarn(1.00f, 0.72f, 0.30f, 1.00f);
 const ImVec4 kBad(1.00f, 0.40f, 0.40f, 1.00f);
-
-const char* kButtonNames[5] = {"Left", "Right", "Middle", "Side 4", "Side 5"};
-
-// Nearest standard polling rate (within 15%), 0 if none.
-int NearestStandardRate(double hz) {
-    static const int rates[] = {125, 250, 500, 1000, 2000, 4000, 8000};
-    for (int r : rates)
-        if (std::fabs(hz - r) / r < 0.15) return r;
-    return 0;
-}
 
 void SectionTitle(const char* text) {
     ImGui::PushStyleColor(ImGuiCol_Text, kAccent);
@@ -140,6 +133,9 @@ void DrawLeftPanel(Analyzer& a, UiState& s, double dt) {
     ImGui::PushFont(s.fontBig);
     ImGui::TextColored(kAccent, "MOUSE TESTER");
     ImGui::PopFont();
+    ImGui::SameLine();
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + s.fontBig->FontSize * 0.4f);
+    ImGui::TextDisabled("v" APP_VERSION_STR);
     ImGui::Spacing();
 
     // Device selection
@@ -205,9 +201,20 @@ void DrawLeftPanel(Analyzer& a, UiState& s, double dt) {
     ImGui::Spacing();
     ImGui::Text("Wheel:  up %.0f   down %.0f notches", a.wheelUp / 120.0, a.wheelDown / 120.0);
 
-    // Button at the bottom of the panel
+    // Buttons at the bottom of the panel, with the outcome of the last export above them
+    const ImGuiStyle& style = ImGui::GetStyle();
     const float btnH = ImGui::GetFrameHeight();
-    ImGui::SetCursorPosY(std::max(ImGui::GetCursorPosY(), ImGui::GetWindowHeight() - btnH - ImGui::GetStyle().WindowPadding.y));
+    const float bottom = btnH * 2 + style.ItemSpacing.y + ImGui::GetTextLineHeightWithSpacing() + style.WindowPadding.y;
+    ImGui::SetCursorPosY(std::max(ImGui::GetCursorPosY(), ImGui::GetWindowHeight() - bottom));
+    if (!s.exportStatus.empty()) ImGui::TextColored(s.exportOk ? kGood : kBad, "%s", s.exportStatus.c_str());
+    else ImGui::NewLine();
+    if (ImGui::Button("Export report...", ImVec2(-FLT_MIN, 0))) {
+        const std::wstring path = AskSavePath(L"mouse-report.txt", L"Text file (*.txt)\0*.txt\0", L"txt");
+        if (!path.empty()) {
+            s.exportOk = ExportReport(a, s, path);
+            s.exportStatus = s.exportOk ? "Report saved" : "Could not save the report";
+        }
+    }
     if (ImGui::Button("Reset all", ImVec2(-FLT_MIN, 0))) a.resetAll();
 }
 
@@ -287,6 +294,14 @@ void DrawPollingTab(Analyzer& a, UiState& s) {
     Hint("\"Batched\" intervals are packets delivered together by Windows: they point to system or USB "
          "driver load rather than a mouse defect. Plug the cable/receiver directly into the PC, not into a hub.");
     if (ImGui::Button("Reset polling")) a.resetPolling();
+    ImGui::SameLine();
+    if (ImGui::Button("Export intervals (CSV)...")) {
+        const std::wstring path = AskSavePath(L"polling-intervals.csv", L"CSV file (*.csv)\0*.csv\0", L"csv");
+        if (!path.empty()) {
+            s.exportOk = ExportIntervalsCsv(a, path);
+            s.exportStatus = s.exportOk ? "Intervals saved" : "Could not save the intervals";
+        }
+    }
 }
 
 // ---------------------------------------------------------------- sensor tab
@@ -519,21 +534,9 @@ void DrawDpiTab(Analyzer& a, UiState& s) {
                 a.dpiActive ? accent : ImGui::GetColorU32(ImGuiCol_TextDisabled), t);
 
     // --- Results ---
-    const size_t n = a.dpiPasses.size();
-    double mean = 0, sd = 0, lo = 0, hi = 0;
-    if (n > 0) {
-        lo = DBL_MAX; hi = -DBL_MAX;
-        for (const auto& p : a.dpiPasses) {
-            const double d = std::hypot(p.x, p.y) / inches;
-            mean += d; lo = std::min(lo, d); hi = std::max(hi, d);
-        }
-        mean /= double(n);
-        for (const auto& p : a.dpiPasses) {
-            const double d = std::hypot(p.x, p.y) / inches - mean;
-            sd += d * d;
-        }
-        sd = n > 1 ? std::sqrt(sd / double(n - 1)) : 0.0;
-    }
+    const DpiSummary sum = a.dpiSummary(inches);
+    const size_t n = sum.passes;
+    const double mean = sum.mean, sd = sum.stddev, lo = sum.min, hi = sum.max;
     const double dev = n ? 100.0 * (mean - s.dpiConfigured) / s.dpiConfigured : 0.0;
 
     ImGui::Spacing();
@@ -573,7 +576,7 @@ void DrawDpiTab(Analyzer& a, UiState& s) {
         ImGui::TableHeadersRow();
         for (size_t i = n; i-- > 0;) { // newest first
             const auto& p = a.dpiPasses[i];
-            const double d = std::hypot(p.x, p.y) / inches;
+            const double d = a.passDpi(p, inches);
             const double dv = 100.0 * (d - s.dpiConfigured) / s.dpiConfigured;
             ImGui::TableNextRow();
             ImGui::TableNextColumn(); ImGui::Text("%zu", i + 1);

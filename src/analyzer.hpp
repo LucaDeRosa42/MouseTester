@@ -43,6 +43,22 @@ struct ButtonInfo {
     int64_t  lastDownQpc = 0, lastUpQpc = 0;
 };
 
+inline constexpr const char* kButtonNames[5] = {"Left", "Right", "Middle", "Side 4", "Side 5"};
+
+// Nearest standard polling rate (within 15%), 0 if none.
+inline int NearestStandardRate(double hz) {
+    static const int rates[] = {125, 250, 500, 1000, 2000, 4000, 8000};
+    for (int r : rates)
+        if ((hz > r ? hz - r : r - hz) / r < 0.15) return r;
+    return 0;
+}
+
+// Summary of the DPI passes for a given distance.
+struct DpiSummary {
+    size_t passes = 0;
+    double mean = 0, stddev = 0, min = 0, max = 0; // DPI
+};
+
 struct PathPoint { float x, y; };
 
 // Anomalous point of the path, to highlight it in the drawing.
@@ -110,6 +126,8 @@ public:
     bool   dpiActive = false; // a pass is being recorded
     double dpiSumX = 0, dpiSumY = 0;
     std::vector<DpiPass> dpiPasses;
+    DpiSummary dpiSummary(double inches) const;
+    double passDpi(const DpiPass& p, double inches) const;
 
 private:
     void processMotion(const MouseEvent& e);

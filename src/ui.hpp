@@ -31,6 +31,9 @@ struct UiState {
     } pathView;
     std::vector<ImVec2> pathPts;
 
+    std::string exportStatus; // outcome of the last export, shown in the left panel
+    bool        exportOk = false;
+
     Ring<float, 240> frameMs; // duration of the last frames, for the stutter indicator
 };
 

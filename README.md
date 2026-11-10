@@ -17,6 +17,15 @@ cmake --build build --config Release
 build\Release\MouseTester.exe
 ```
 
+## Distributing
+`build\Release\MouseTester.exe` is a single self-contained file: the C runtime is linked statically and it only depends on DLLs that ship with Windows 10/11. Copy it anywhere and run it.
+
+The version shown in the app and in the file properties is set in `res/resource.h`.
+
+## Exporting results
+- **Export report...** (left panel) saves a text report with the results of every tab.
+- **Export intervals (CSV)...** (Polling rate tab) saves the raw polling intervals in µs, to compare them with other tools.
+
 ## Layout
 | File | Contents |
 |---|---|
@@ -25,6 +34,7 @@ build\Release\MouseTester.exe
 | `src/analyzer.*` | Statistics: polling, jitter, sensor continuity, DPI, chatter, wheel |
 | `src/mouse_view.*` | Vector drawing of the mouse with buttons that light up |
 | `src/ui.*` | UI: theme and tabs |
+| `src/export.*` | Text report and CSV export |
 | `src/main.cpp` | Win32 window, DirectX 11, main loop |
 | `res/`, `tools/make_icon.ps1` | App icon and the script that generates it |
 

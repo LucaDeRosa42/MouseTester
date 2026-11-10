@@ -1,4 +1,33 @@
 // Executable resources. Regenerate the icon with tools\make_icon.ps1.
+#include <winver.h>
 #include "resource.h"
 
 IDI_APP ICON "app.ico"
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION    APP_VERSION_NUM
+ PRODUCTVERSION APP_VERSION_NUM
+ FILEFLAGSMASK  VS_FFI_FILEFLAGSMASK
+ FILEFLAGS      0
+ FILEOS         VOS_NT_WINDOWS32
+ FILETYPE       VFT_APP
+ FILESUBTYPE    0
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "FileDescription",  "Mouse Tester - polling rate, sensor, DPI and click tester"
+            VALUE "FileVersion",      APP_VERSION_STR
+            VALUE "ProductName",      "Mouse Tester"
+            VALUE "ProductVersion",   APP_VERSION_STR
+            VALUE "InternalName",     "MouseTester"
+            VALUE "OriginalFilename", "MouseTester.exe"
+            VALUE "LegalCopyright",   "Copyright (C) 2026 lcrd42"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200
+    END
+END

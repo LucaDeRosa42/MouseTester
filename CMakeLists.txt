@@ -8,6 +8,9 @@ endif()
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Static CRT: the .exe runs on any Windows 10/11 without installing the Visual C++ runtime
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 # --- Dear ImGui (downloaded automatically from GitHub on first configure) ---
 include(FetchContent)
 FetchContent_Declare(
@@ -36,11 +39,12 @@ add_executable(MouseTester WIN32
     src/analyzer.cpp
     src/mouse_view.cpp
     src/ui.cpp
+    src/export.cpp
     res/app.rc
 )
 target_include_directories(MouseTester PRIVATE res)
 target_compile_definitions(MouseTester PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
-target_link_libraries(MouseTester PRIVATE imgui hid dwmapi)
+target_link_libraries(MouseTester PRIVATE imgui hid dwmapi comdlg32)
 
 if(MSVC)
     # /utf-8: UI strings contain non-ASCII characters such as "µ", "·" and "→"

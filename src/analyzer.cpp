@@ -190,6 +190,26 @@ void Analyzer::refresh(int64_t nowQpc) {
     stats.batchedPct = 100.0 * double(batched) / double(n);
 }
 
+double Analyzer::passDpi(const DpiPass& p, double inches) const {
+    return std::hypot(p.x, p.y) / inches;
+}
+
+DpiSummary Analyzer::dpiSummary(double inches) const {
+    DpiSummary s;
+    s.passes = dpiPasses.size();
+    if (!s.passes) return s;
+    s.min = 1e300; s.max = -1e300;
+    for (const auto& p : dpiPasses) {
+        const double d = passDpi(p, inches);
+        s.mean += d; s.min = std::min(s.min, d); s.max = std::max(s.max, d);
+    }
+    s.mean /= double(s.passes);
+    double var = 0;
+    for (const auto& p : dpiPasses) var += (passDpi(p, inches) - s.mean) * (passDpi(p, inches) - s.mean);
+    s.stddev = s.passes > 1 ? std::sqrt(var / double(s.passes - 1)) : 0.0;
+    return s;
+}
+
 void Analyzer::histogram(int bins, double maxUs, std::vector<float>& out) const {
     out.assign(bins, 0.0f);
     if (maxUs <= 0) return;

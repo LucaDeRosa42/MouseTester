@@ -44,7 +44,7 @@
 ## Fase 5 — Rifinitura
 - [ ] Tema e disegno del mouse curati
 - [ ] Scala corretta su monitor ad alta densità (DPI awareness)
-- [ ] Esportare i risultati di una sessione (CSV o testo)
+- [x] Esportare i risultati: report di testo di tutte le schede e CSV degli intervalli del polling
 - [x] Icona dell'eseguibile e della finestra (`res/app.ico`, rigenerabile con `tools/make_icon.ps1`)
-- [ ] Informazioni di versione dell'eseguibile
-- [ ] Build Release distribuibile (eseguibile unico, CRT statica)
+- [x] Informazioni di versione dell'eseguibile (0.1.0, in `res/resource.h`)
+- [x] Build Release distribuibile: eseguibile unico con CRT statica, dipende solo da DLL di sistema
