@@ -29,12 +29,24 @@ void Hint(const char* text) {
     ImGui::PopStyleColor();
 }
 
-// "Small label + value" cell in a statistics table.
-void Stat(const char* label, const char* value, const ImVec4* color = nullptr) {
+// Explanatory popup shown while the previous item is hovered.
+void Explain(const char* text) {
+    if (!ImGui::BeginItemTooltip()) return;
+    ImGui::PushTextWrapPos(ImGui::GetFontSize() * 26.0f);
+    ImGui::TextUnformatted(text);
+    ImGui::PopTextWrapPos();
+    ImGui::EndTooltip();
+}
+
+// "Small label + value" cell in a statistics table, with an optional explanation on hover.
+void Stat(const char* label, const char* value, const ImVec4* color = nullptr, const char* tip = nullptr) {
     ImGui::TableNextColumn();
+    ImGui::BeginGroup();
     ImGui::TextDisabled("%s", label);
     if (color) ImGui::TextColored(*color, "%s", value);
     else ImGui::TextUnformatted(value);
+    ImGui::EndGroup();
+    if (tip) Explain(tip);
 }
 
 void StatF(const char* label, const char* fmt, double v, const ImVec4* color = nullptr) {
@@ -307,6 +319,28 @@ void DrawPollingTab(Analyzer& a, UiState& s) {
 // ---------------------------------------------------------------- sensor tab
 constexpr size_t kRecentPoints = 3000; // "recent movements": highlighted and used by "Recent only"
 
+// Explanations of the sensor counters, shown on hover (same order as MarkKind).
+const char* kMarkTips[4] = {
+    "Missing packet\n\n"
+    "A packet carried 2, 3 or 4 times the movement of its neighbours: the mouse skipped 1-3 polls and "
+    "sent the accumulated movement all at once. Typical of a sensor or firmware that cannot keep up "
+    "with the polling rate, or of a weak wireless link.",
+
+    "Spike\n\n"
+    "A packet carried much more movement than its neighbours (at least 1.6x), but not an exact multiple, "
+    "so it is not explained by missing packets. It is a sudden jump of the sensor reading: dust on the "
+    "lens, a bad surface or a sensor glitch.",
+
+    "Dip\n\n"
+    "A packet carried much less movement than its neighbours (below 0.45x) while the mouse was moving "
+    "steadily. The sensor briefly lost tracking or reported late, often because of the surface or "
+    "lift-off.",
+
+    "Reversal\n\n"
+    "Two consecutive fast packets point in opposite directions. At 1000 Hz and above a hand cannot stop "
+    "and move back within one poll, so this is a sensor error (jitter or a bad reading), not real movement.",
+};
+
 const ImU32 kMarkColors[4] = {
     IM_COL32(255, 90, 90, 255),   // missing packet
     IM_COL32(255, 184, 77, 255),  // spike
@@ -442,15 +476,19 @@ void DrawSensorTab(Analyzer& a, UiState& s) {
         };
         char buf[32];
         std::snprintf(buf, sizeof(buf), "%llu", (unsigned long long)a.checkedPackets);
-        Stat("Packets checked", buf);
+        Stat("Packets checked", buf, nullptr,
+             "Packets checked\n\n"
+             "Packets moving fast and steadily enough to be judged: at least 6 counts on average, with "
+             "consistent neighbours. Slow or irregular movement is skipped, because count rounding would "
+             "make the comparison unreliable. The other counters only refer to these packets.");
         std::snprintf(buf, sizeof(buf), "%llu", (unsigned long long)a.skippedEstimate);
-        Stat("Missing", buf, color(a.skippedEstimate));
+        Stat("Missing", buf, color(a.skippedEstimate), kMarkTips[0]);
         std::snprintf(buf, sizeof(buf), "%llu", (unsigned long long)a.spikes);
-        Stat("Spikes", buf, color(a.spikes));
+        Stat("Spikes", buf, color(a.spikes), kMarkTips[1]);
         std::snprintf(buf, sizeof(buf), "%llu", (unsigned long long)a.dips);
-        Stat("Dips", buf, color(a.dips));
+        Stat("Dips", buf, color(a.dips), kMarkTips[2]);
         std::snprintf(buf, sizeof(buf), "%llu", (unsigned long long)a.reversals);
-        Stat("Reversals", buf, color(a.reversals));
+        Stat("Reversals", buf, color(a.reversals), kMarkTips[3]);
         ImGui::EndTable();
     }
     ImGui::Spacing();
@@ -467,6 +505,7 @@ void DrawSensorTab(Analyzer& a, UiState& s) {
     for (int i = 0; i < 4; ++i) {
         ImGui::SameLine(0, i == 0 ? 24.0f * s.scale : -1.0f);
         ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kMarkColors[i]), "o %s", markNames[i]);
+        Explain(kMarkTips[i]);
     }
 
     const float h = std::max(200.0f, ImGui::GetContentRegionAvail().y - ImGui::GetTextLineHeightWithSpacing() * 5.5f);
