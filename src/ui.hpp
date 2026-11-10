@@ -35,6 +35,9 @@ struct UiState {
     std::string exportStatus; // outcome of the last export, shown in the left panel
     bool        exportOk = false;
 
+    double captureCpuPct = 0;        // capture thread, % of one core (updated by main every 0.5 s)
+    double captureUsPerPacket = -1;  // CPU time per WM_INPUT, -1 when no packets arrived
+
     Ring<float, 240> frameMs; // duration of the last frames, for the stutter indicator
 };
 

@@ -23,9 +23,10 @@
 - [x] Misura attiva da 1,5 count per pacchetto, con stato "in misura / in pausa" e velocità attuale
 - [x] Indicatore dei tempi di frame in alto a destra
 - [x] Valutare GetRawInputBuffer: non serve, a 8000 Hz la coda dei messaggi regge senza perdite
-- [x] CPU del thread di cattura a 8000 Hz: tra il 2% e il 22% di un core (meno dell'1% della CPU totale);
-      la misura di Windows è a campionamento e varia molto da prova a prova
-- [ ] Misura precisa con QueryThreadCycleTime dentro l'app e ritardo tra arrivo e timestamp
+- [x] CPU del thread di cattura misurata nell'app con QueryThreadCycleTime e mostrata in alto a destra:
+      ~18% di un core a ~7000 pacchetti/s simulati, 24 µs per pacchetto (meno dell'1% della CPU totale)
+- [x] Ritardo tra arrivo e timestamp: non misurabile via software (MSG.time ha risoluzione di millisecondi);
+      il timestamp QPC viene preso appena il messaggio esce dalla coda
 - [x] Filtro per dispositivo: menu in alto a sinistra, con il numero di pacchetti per dispositivo
 - [ ] Confronto dei risultati con un altro tester noto
 

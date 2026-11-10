@@ -31,6 +31,11 @@ public:
     Queue&   queue() { return queue_; }
     uint64_t dropped() const { return dropped_.load(std::memory_order_relaxed); }
 
+    // CPU cost of the capture thread: its own CPU cycles (QueryThreadCycleTime, exact,
+    // unlike Windows' sampled thread times) and the number of WM_INPUT handled.
+    uint64_t cycles() const { return cycles_.load(std::memory_order_relaxed); }
+    uint64_t handled() const { return handled_.load(std::memory_order_relaxed); }
+
     // Readable device name (HID product name, or VID/PID).
     static std::string deviceName(HANDLE device);
 
@@ -44,5 +49,7 @@ private:
     std::atomic<bool>     ready_{false};
     std::atomic<bool>     ok_{false};
     std::atomic<uint64_t> dropped_{0};
+    std::atomic<uint64_t> cycles_{0};
+    std::atomic<uint64_t> handled_{0};
     DWORD                 threadId_ = 0;
 };

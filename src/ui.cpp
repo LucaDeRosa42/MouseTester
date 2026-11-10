@@ -812,13 +812,24 @@ void DrawUi(Analyzer& a, UiState& s, double deltaSeconds, uint64_t droppedPacket
             worst = std::max(worst, double(s.frameMs[i]));
         }
         const double avg = sum / double(s.frameMs.size());
-        char t[64];
-        std::snprintf(t, sizeof(t), "frame %.1f ms · worst %.1f ms", avg, worst);
+        char t[128];
+        if (s.captureUsPerPacket >= 0)
+            std::snprintf(t, sizeof(t), "capture %.1f %% CPU · %.1f µs/packet    frame %.1f ms · worst %.1f ms",
+                          s.captureCpuPct, s.captureUsPerPacket, avg, worst);
+        else
+            std::snprintf(t, sizeof(t), "capture idle    frame %.1f ms · worst %.1f ms", avg, worst);
         const ImVec2 ts = ImGui::CalcTextSize(t);
         const ImVec2 wp = ImGui::GetWindowPos();
         const ImVec2 pad = ImGui::GetStyle().WindowPadding;
         const ImU32 col = worst > avg * 2.5 + 4.0 ? ImGui::ColorConvertFloat4ToU32(kWarn) : ImGui::GetColorU32(ImGuiCol_TextDisabled);
         ImGui::GetWindowDrawList()->AddText(ImVec2(wp.x + ImGui::GetWindowWidth() - ts.x - pad.x, wp.y + pad.y), col, t);
+        ImGui::SetCursorScreenPos(ImVec2(wp.x + ImGui::GetWindowWidth() - ts.x - pad.x, wp.y + pad.y));
+        ImGui::Dummy(ts);
+        Explain("Capture: CPU used by the high-priority capture thread, as a percentage of one core, and per "
+                "packet. Measured from the thread's own CPU cycles.\n\n"
+                "Frame: average and worst frame time of the interface over the last frames. It turns orange "
+                "when a frame takes much longer than usual (a stutter).");
+        ImGui::SetCursorScreenPos(ImVec2(wp.x + pad.x, wp.y + pad.y));
     }
     a.dpiArmed = false; // re-armed by the DPI tab only while the cursor is over its pad
     if (droppedPackets)

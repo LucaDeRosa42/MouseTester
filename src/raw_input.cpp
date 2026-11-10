@@ -86,6 +86,7 @@ void RawInputCapture::run() {
                 LARGE_INTEGER now;
                 QueryPerformanceCounter(&now);
                 handleRawInput(reinterpret_cast<HRAWINPUT>(msg.lParam), now.QuadPart);
+                handled_.fetch_add(1, std::memory_order_relaxed);
                 DefWindowProcW(msg.hwnd, msg.message, msg.wParam, msg.lParam); // cleanup required by Windows
             } else if (msg.message == WM_QUIT) {
                 quit = true;
@@ -95,6 +96,10 @@ void RawInputCapture::run() {
                 DispatchMessageW(&msg);
             }
         }
+        // Once per wake-up, after the queue is empty: costs well under a microsecond.
+        ULONG64 cycles = 0;
+        QueryThreadCycleTime(GetCurrentThread(), &cycles);
+        cycles_.store(cycles, std::memory_order_relaxed);
     }
 
     rid.dwFlags = RIDEV_REMOVE;

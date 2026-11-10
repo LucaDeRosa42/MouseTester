@@ -3,6 +3,8 @@
 #include <d3d11.h>
 #include <dwmapi.h>
 
+#include <intrin.h>
+
 #include <memory>
 
 #include "analyzer.hpp"
@@ -160,6 +162,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
     LARGE_INTEGER last;
     QueryPerformanceCounter(&last);
     bool done = false;
+
+    // Capture thread CPU: thread cycles are counted in TSC ticks, so the TSC frequency is
+    // measured against QPC over the whole run (more precise the longer the app runs).
+    const uint64_t tscStart = __rdtsc();
+    const int64_t qpcStart = last.QuadPart;
+    int64_t cpuQpc = last.QuadPart;
+    uint64_t cpuCycles = capture.cycles(), cpuHandled = capture.handled();
     while (!done) {
         // Window messages with a time budget: with an 8000 Hz mouse Windows keeps generating
         // new WM_MOUSEMOVE while we process them and the loop might never end (measured:
@@ -186,6 +195,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
         const double dt = double(now.QuadPart - last.QuadPart) / double(freq.QuadPart);
         last = now;
         ui.frameMs.push(float(dt * 1000.0));
+
+        if (now.QuadPart - cpuQpc > freq.QuadPart / 2) { // every 0.5 s
+            const double tscHz = double(__rdtsc() - tscStart) * double(freq.QuadPart) / double(now.QuadPart - qpcStart);
+            const double seconds = double(now.QuadPart - cpuQpc) / double(freq.QuadPart);
+            const uint64_t cycles = capture.cycles(), handled = capture.handled();
+            const double busy = double(cycles - cpuCycles) / tscHz; // seconds of CPU
+            ui.captureCpuPct = 100.0 * busy / seconds;
+            ui.captureUsPerPacket = handled > cpuHandled ? busy * 1e6 / double(handled - cpuHandled) : -1.0;
+            cpuQpc = now.QuadPart; cpuCycles = cycles; cpuHandled = handled;
+        }
 
         if (g_occluded && g_swapChain->Present(0, DXGI_PRESENT_TEST) == DXGI_STATUS_OCCLUDED) {
             Sleep(10);
