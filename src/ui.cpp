@@ -1,3 +1,5 @@
+// Mouse Tester - Copyright (C) 2026 lcrd42
+// SPDX-License-Identifier: GPL-3.0-or-later
 #include "ui.hpp"
 
 #include "export.hpp"

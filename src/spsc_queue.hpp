@@ -1,3 +1,5 @@
+// Mouse Tester - Copyright (C) 2026 lcrd42
+// SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 // Lock-free single-producer / single-consumer queue.
 // The capture thread writes, the UI thread reads:

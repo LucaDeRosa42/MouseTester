@@ -1,3 +1,5 @@
+# Mouse Tester - Copyright (C) 2026 lcrd42
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Generates res/app.ico: a stylised mouse with the left button lit, in the app's colours.
 # Usage: powershell -ExecutionPolicy Bypass -File tools\make_icon.ps1
 Add-Type -AssemblyName System.Drawing

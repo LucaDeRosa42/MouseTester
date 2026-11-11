@@ -1,3 +1,5 @@
+// Mouse Tester - Copyright (C) 2026 lcrd42
+// SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 // Interface translations. The exported report stays in English on purpose,
 // so it can be read by anyone it is sent to.

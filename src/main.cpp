@@ -1,4 +1,6 @@
-// Mouse Tester - Win32 window + DirectX 11 + Dear ImGui
+// Mouse Tester - Copyright (C) 2026 lcrd42
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Win32 window + DirectX 11 + Dear ImGui
 #include <windows.h>
 #include <d3d11.h>
 #include <dwmapi.h>

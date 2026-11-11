@@ -57,6 +57,14 @@ EXPORT
 "Export intervals (CSV)..." on the Polling rate tab saves the raw intervals.
 
 
+LICENSE
+-------
+Mouse Tester is free software, released under the GNU General Public License
+version 3 or later (see LICENSE). Source code:
+https://github.com/lcrd42/MouseTester
+It uses Dear ImGui (MIT License, see THIRD_PARTY.txt).
+
+
 LIMITS
 ------
 Timestamps are taken when Windows delivers each packet, so the measured jitter
