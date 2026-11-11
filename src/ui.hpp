@@ -32,7 +32,7 @@ struct UiState {
     } pathView;
     std::vector<ImVec2> pathPts;
 
-    std::string exportStatus; // outcome of the last export, shown in the left panel
+    int         exportStatus = -1; // Str id of the last export outcome, -1 = none (shown in the left panel)
     bool        exportOk = false;
 
     double captureCpuPct = 0;        // capture thread, % of one core (updated by main every 0.5 s)

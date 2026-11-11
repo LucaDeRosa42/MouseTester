@@ -54,3 +54,11 @@
 - [x] Informazioni di versione dell'eseguibile (0.1.0, in `res/resource.h`)
 - [x] Build Release distribuibile: eseguibile unico con CRT statica, dipende solo da DLL di sistema
 - [x] Versione 0.1.0 rilasciata: tag `v0.1.0` e `dist/MouseTester-0.1.0.zip` (exe + `dist/README.txt` per gli utenti)
+
+## Versione 0.2.0
+- [x] Barra di scorrimento della finestra di destra riparata (l'indicatore CPU/frame spostava il cursore di disegno)
+- [x] Menu della lingua: inglese, italiano, russo, spagnolo, francese, tedesco, portoghese, cinese semplificato;
+      scelta salvata nel registro (HKCU\Software\MouseTester), al primo avvio segue la lingua di Windows
+- [x] Font: Segoe UI con cirillico, Microsoft YaHei unito per il cinese, solo i caratteri usati
+- [ ] Hindi, arabo, bengalese: richiedono la composizione dei caratteri (e l'arabo la scrittura da destra), che Dear ImGui non supporta
+- [ ] Traduzioni da far rileggere a madrelingua (scritte senza revisione)

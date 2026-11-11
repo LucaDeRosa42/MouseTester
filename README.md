@@ -22,6 +22,9 @@ build\Release\MouseTester.exe
 
 The version shown in the app and in the file properties is set in `res/resource.h`.
 
+## Languages
+English, Italiano, Русский, Español, Français, Deutsch, Português and 中文 (简体), selectable from the menu in the left panel. The choice is saved in `HKCU\Software\MouseTester`; on first start the Windows display language is used. Translations live in `src/i18n.cpp`. The exported report is always in English.
+
 ## Exporting results
 - **Export report...** (left panel) saves a text report with the results of every tab.
 - **Export intervals (CSV)...** (Polling rate tab) saves the raw polling intervals in µs, to compare them with other tools.
@@ -35,6 +38,7 @@ The version shown in the app and in the file properties is set in `res/resource.
 | `src/mouse_view.*` | Vector drawing of the mouse with buttons that light up |
 | `src/ui.*` | UI: theme and tabs |
 | `src/export.*` | Text report and CSV export |
+| `src/i18n.*` | Interface translations and saved language |
 | `src/main.cpp` | Win32 window, DirectX 11, main loop |
 | `res/`, `tools/make_icon.ps1` | App icon and the script that generates it |
 

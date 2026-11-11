@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "analyzer.hpp"
+#include "i18n.hpp"
 #include "imgui.h"
 #include "imgui_impl_dx11.h"
 #include "imgui_impl_win32.h"
@@ -142,10 +143,29 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
 
     UiState ui;
     ui.scale = scale;
+    LoadLanguage();
+
+    // Only the characters actually used by the translations are put in the font atlas,
+    // so Cyrillic and Chinese cost a few hundred glyphs instead of tens of thousands.
+    static ImVector<ImWchar> glyphRanges; // must outlive the atlas build
+    {
+        ImFontGlyphRangesBuilder builder;
+        builder.AddRanges(io.Fonts->GetGlyphRangesDefault());
+        builder.AddText("µ°·→–—“”„«»");
+        AddTranslationGlyphs(builder);
+        builder.BuildRanges(&glyphRanges);
+    }
     const char* fontPath = "C:\\Windows\\Fonts\\segoeui.ttf";
     const char* fontBoldPath = "C:\\Windows\\Fonts\\seguisb.ttf";
+    const char* fontCjkPath = "C:\\Windows\\Fonts\\msyh.ttc"; // Microsoft YaHei, for Chinese
     if (FileExists(fontPath)) {
-        io.Fonts->AddFontFromFileTTF(fontPath, 17.0f * scale);
+        io.Fonts->AddFontFromFileTTF(fontPath, 17.0f * scale, nullptr, glyphRanges.Data);
+        if (FileExists(fontCjkPath)) {
+            // Merged into the main font: Segoe UI keeps Latin and Cyrillic, YaHei fills in the rest.
+            ImFontConfig cjk;
+            cjk.MergeMode = true;
+            io.Fonts->AddFontFromFileTTF(fontCjkPath, 17.0f * scale, &cjk, glyphRanges.Data);
+        }
         ui.fontBig = io.Fonts->AddFontFromFileTTF(FileExists(fontBoldPath) ? fontBoldPath : fontPath, 40.0f * scale);
     } else {
         ImFontConfig cfg;

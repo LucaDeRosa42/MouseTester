@@ -40,6 +40,7 @@ add_executable(MouseTester WIN32
     src/mouse_view.cpp
     src/ui.cpp
     src/export.cpp
+    src/i18n.cpp
     res/app.rc
 )
 target_include_directories(MouseTester PRIVATE res)

@@ -1,6 +1,7 @@
 #include "ui.hpp"
 
 #include "export.hpp"
+#include "i18n.hpp"
 #include "resource.h"
 
 #include <algorithm>
@@ -14,6 +15,16 @@ const ImVec4 kAccent(0.30f, 0.76f, 1.00f, 1.00f);
 const ImVec4 kGood(0.35f, 0.85f, 0.55f, 1.00f);
 const ImVec4 kWarn(1.00f, 0.72f, 0.30f, 1.00f);
 const ImVec4 kBad(1.00f, 0.40f, 0.40f, 1.00f);
+
+// Translated label with a fixed ImGui ID ("text###tag"), so tabs and widgets keep
+// their state when the language changes.
+const char* L(Str id, const char* tag) {
+    static char buf[8][600];
+    static int next = 0;
+    char* b = buf[next++ % 8];
+    std::snprintf(b, sizeof(buf[0]), "%s###%s", T(id), tag);
+    return b;
+}
 
 void SectionTitle(const char* text) {
     ImGui::PushStyleColor(ImGuiCol_Text, kAccent);
@@ -154,21 +165,33 @@ void DrawLeftPanel(Analyzer& a, UiState& s, double dt) {
     for (auto& [h, count] : a.devicePackets)
         if (!s.deviceNames.count(h)) s.deviceNames[h] = RawInputCapture::deviceName(h);
 
-    const char* current = a.deviceFilter ? s.deviceNames[a.deviceFilter].c_str() : "All devices";
+    const char* current = a.deviceFilter ? s.deviceNames[a.deviceFilter].c_str() : T(Str::AllDevices);
     ImGui::SetNextItemWidth(-FLT_MIN);
     if (ImGui::BeginCombo("##device", current)) {
-        if (ImGui::Selectable("All devices", a.deviceFilter == nullptr)) {
+        if (ImGui::Selectable(T(Str::AllDevices), a.deviceFilter == nullptr)) {
             a.deviceFilter = nullptr;
             a.resetAll();
         }
         for (auto& [h, count] : a.devicePackets) {
             char label[320];
-            std::snprintf(label, sizeof(label), "%s  -  %llu packets##%p", s.deviceNames[h].c_str(), (unsigned long long)count, h);
+            const int len = std::snprintf(label, sizeof(label), T(Str::DevicePackets), s.deviceNames[h].c_str(), (unsigned long long)count);
+            std::snprintf(label + len, sizeof(label) - len, "##%p", h);
             if (ImGui::Selectable(label, a.deviceFilter == h)) {
                 a.deviceFilter = h;
                 a.resetAll();
             }
         }
+        ImGui::EndCombo();
+    }
+
+    // Interface language (remembered for the next start)
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextDisabled("%s", T(Str::Language));
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(-FLT_MIN);
+    if (ImGui::BeginCombo("##language", LanguageName(CurrentLanguage()))) {
+        for (int i = 0; i < int(Lang::Count); ++i)
+            if (ImGui::Selectable(LanguageName(Lang(i)), CurrentLanguage() == Lang(i))) SetLanguage(Lang(i));
         ImGui::EndCombo();
     }
 
@@ -183,24 +206,31 @@ void DrawLeftPanel(Analyzer& a, UiState& s, double dt) {
         (a.wheelLastDir > 0 ? s.visual.wheelUp : s.visual.wheelDown) = 1.0f;
     }
 
-    // Mouse drawing
-    const ImVec2 area(ImGui::GetContentRegionAvail().x, 330.0f * s.scale);
+    // Mouse drawing: it takes the room left by the button table and the bottom buttons, so the
+    // panel never needs a scrollbar (between 160 and 330 px at 100% scale).
+    const ImGuiStyle& st = ImGui::GetStyle();
+    const float rowH = ImGui::GetTextLineHeight() + st.CellPadding.y * 2;
+    const float below = rowH * 6 + ImGui::GetTextLineHeightWithSpacing() * 2 + ImGui::GetFrameHeight() * 2 +
+                        st.ItemSpacing.y * 6;
+    const float mouseH = std::clamp(ImGui::GetContentRegionAvail().y - below, 160.0f * s.scale, 330.0f * s.scale);
+    const ImVec2 area(ImGui::GetContentRegionAvail().x, mouseH);
     const ImVec2 pos = ImGui::GetCursorScreenPos();
     DrawMouse(ImGui::GetWindowDrawList(), pos, area, s.visual, ImGui::ColorConvertFloat4ToU32(kAccent));
     ImGui::Dummy(area);
 
     // Button summary
     if (ImGui::BeginTable("buttons", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp)) {
-        ImGui::TableSetupColumn("Button");
-        ImGui::TableSetupColumn("Presses");
-        ImGui::TableSetupColumn("Chatter");
+        ImGui::TableSetupColumn(T(Str::ColButton));
+        ImGui::TableSetupColumn(T(Str::ColPresses));
+        ImGui::TableSetupColumn(T(Str::ColChatter));
         ImGui::TableHeadersRow();
         for (int i = 0; i < 5; ++i) {
             const ButtonInfo& b = a.buttons[i];
+            const char* name = T(Str(int(Str::BtnLeft) + i));
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
-            if (b.down) ImGui::TextColored(kAccent, "%s", kButtonNames[i]);
-            else ImGui::TextUnformatted(kButtonNames[i]);
+            if (b.down) ImGui::TextColored(kAccent, "%s", name);
+            else ImGui::TextUnformatted(name);
             ImGui::TableNextColumn();
             ImGui::Text("%llu", (unsigned long long)b.presses);
             ImGui::TableNextColumn();
@@ -211,23 +241,23 @@ void DrawLeftPanel(Analyzer& a, UiState& s, double dt) {
     }
 
     ImGui::Spacing();
-    ImGui::Text("Wheel:  up %.0f   down %.0f notches", a.wheelUp / 120.0, a.wheelDown / 120.0);
+    ImGui::Text(T(Str::WheelSummary), a.wheelUp / 120.0, a.wheelDown / 120.0);
 
     // Buttons at the bottom of the panel, with the outcome of the last export above them
     const ImGuiStyle& style = ImGui::GetStyle();
     const float btnH = ImGui::GetFrameHeight();
     const float bottom = btnH * 2 + style.ItemSpacing.y + ImGui::GetTextLineHeightWithSpacing() + style.WindowPadding.y;
     ImGui::SetCursorPosY(std::max(ImGui::GetCursorPosY(), ImGui::GetWindowHeight() - bottom));
-    if (!s.exportStatus.empty()) ImGui::TextColored(s.exportOk ? kGood : kBad, "%s", s.exportStatus.c_str());
+    if (s.exportStatus >= 0) ImGui::TextColored(s.exportOk ? kGood : kBad, "%s", T(Str(s.exportStatus)));
     else ImGui::NewLine();
-    if (ImGui::Button("Export report...", ImVec2(-FLT_MIN, 0))) {
+    if (ImGui::Button(L(Str::ExportReport, "export"), ImVec2(-FLT_MIN, 0))) {
         const std::wstring path = AskSavePath(L"mouse-report.txt", L"Text file (*.txt)\0*.txt\0", L"txt");
         if (!path.empty()) {
             s.exportOk = ExportReport(a, s, path);
-            s.exportStatus = s.exportOk ? "Report saved" : "Could not save the report";
+            s.exportStatus = int(s.exportOk ? Str::ReportSaved : Str::ReportFailed);
         }
     }
-    if (ImGui::Button("Reset all", ImVec2(-FLT_MIN, 0))) a.resetAll();
+    if (ImGui::Button(L(Str::ResetAll, "resetall"), ImVec2(-FLT_MIN, 0))) a.resetAll();
 }
 
 // ---------------------------------------------------------------- polling tab
@@ -246,42 +276,41 @@ void DrawPollingTab(Analyzer& a, UiState& s) {
     ImGui::PopFont();
     ImGui::SameLine();
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + s.fontBig->FontSize * 0.35f);
-    if (nominal && st.count > 100) ImGui::TextDisabled("nominal %d Hz", nominal);
-    else ImGui::TextDisabled("move the mouse quickly in circles");
+    if (nominal && st.count > 100) ImGui::TextDisabled(T(Str::Nominal), nominal);
+    else ImGui::TextDisabled("%s", T(Str::MoveCircles));
 
     // Measuring state: current speed compared with the required minimum.
     const double v = a.speedPerPacket();
     if (live)
-        ImGui::TextColored(kGood, "Measuring · speed %.1f counts per packet", v);
+        ImGui::TextColored(kGood, T(Str::Measuring), v);
     else if (a.moving())
-        ImGui::TextColored(kWarn, "Paused: too slow (%.1f counts per packet, at least %.1f needed). "
-                                  "Move faster or raise the DPI.", v, Analyzer::kFastSpeed);
+        ImGui::TextColored(kWarn, T(Str::TooSlow), v, Analyzer::kFastSpeed);
     else
-        ImGui::TextDisabled("Paused: mouse not moving");
+        ImGui::TextDisabled("%s", T(Str::NotMoving));
 
     ImGui::Spacing();
     if (ImGui::BeginTable("pstats", 4, ImGuiTableFlags_SizingStretchSame)) {
-        StatF("Mean", "%.1f µs", st.meanUs);
-        StatF("Median", "%.1f µs", st.medianUs);
+        StatF(T(Str::Mean), "%.1f µs", st.meanUs);
+        StatF(T(Str::Median), "%.1f µs", st.medianUs);
         const double jitterPct = st.meanUs > 0 ? 100.0 * st.stddevUs / st.meanUs : 0.0;
         const ImVec4* jc = jitterPct < 10 ? &kGood : jitterPct < 25 ? &kWarn : &kBad;
-        StatF("Jitter (std. dev.)", "%.1f µs", st.stddevUs, st.count > 100 ? jc : nullptr);
-        StatF("Packets / s", "%.0f", a.packetsLastSecond);
+        StatF(T(Str::Jitter), "%.1f µs", st.stddevUs, st.count > 100 ? jc : nullptr);
+        StatF(T(Str::PacketsPerSec), "%.0f", a.packetsLastSecond);
 
         char buf[64];
         std::snprintf(buf, sizeof(buf), "%.0f / %.0f µs", st.minUs, st.maxUs);
-        Stat("Min / Max", buf);
+        Stat(T(Str::MinMax), buf);
         std::snprintf(buf, sizeof(buf), "%.0f / %.0f µs", st.p01Us, st.p99Us);
-        Stat("1st / 99th percentile", buf);
+        Stat(T(Str::Percentiles), buf);
         const ImVec4* oc = st.outlierPct < 1 ? &kGood : st.outlierPct < 5 ? &kWarn : &kBad;
-        StatF("Outliers (>1.5x)", "%.2f %%", st.outlierPct, st.count > 100 ? oc : nullptr);
-        StatF("Batched (<0.25x)", "%.2f %%", st.batchedPct);
+        StatF(T(Str::Outliers), "%.2f %%", st.outlierPct, st.count > 100 ? oc : nullptr);
+        StatF(T(Str::Batched), "%.2f %%", st.batchedPct);
         ImGui::EndTable();
     }
 
     // Interval histogram
     ImGui::Spacing();
-    SectionTitle("Interval distribution");
+    SectionTitle(T(Str::IntervalDistribution));
     const double maxUs = std::max(st.meanUs * 3.0, 400.0);
     // Reference: the interval of the detected standard rate, otherwise the mean.
     const double refUs = st.count > 100 ? (nominal ? 1e6 / nominal : st.meanUs) : 0.0;
@@ -292,7 +321,7 @@ void DrawPollingTab(Analyzer& a, UiState& s) {
 
     // Over time
     ImGui::Spacing();
-    SectionTitle("Last 2000 intervals");
+    SectionTitle(T(Str::LastIntervals));
     const auto& iv = a.intervals();
     const size_t n = std::min<size_t>(iv.size(), 2000);
     s.timeline.resize(n);
@@ -301,17 +330,15 @@ void DrawPollingTab(Analyzer& a, UiState& s) {
     YAxisMicros(maxUs, refUs);
 
     ImGui::Spacing();
-    Hint("Only movements fast enough to fill every poll are measured: at least 1.5 counts per packet. "
-         "At 8000 Hz and 800 DPI that means about 38 cm/s; at 3200 DPI about 10 cm/s is enough.");
-    Hint("\"Batched\" intervals are packets delivered together by Windows: they point to system or USB "
-         "driver load rather than a mouse defect. Plug the cable/receiver directly into the PC, not into a hub.");
-    if (ImGui::Button("Reset polling")) a.resetPolling();
+    Hint(T(Str::HintPollSpeed));
+    Hint(T(Str::HintBatched));
+    if (ImGui::Button(L(Str::ResetPolling, "resetpolling"))) a.resetPolling();
     ImGui::SameLine();
-    if (ImGui::Button("Export intervals (CSV)...")) {
+    if (ImGui::Button(L(Str::ExportIntervals, "exportcsv"))) {
         const std::wstring path = AskSavePath(L"polling-intervals.csv", L"CSV file (*.csv)\0*.csv\0", L"csv");
         if (!path.empty()) {
             s.exportOk = ExportIntervalsCsv(a, path);
-            s.exportStatus = s.exportOk ? "Intervals saved" : "Could not save the intervals";
+            s.exportStatus = int(s.exportOk ? Str::IntervalsSaved : Str::IntervalsFailed);
         }
     }
 }
@@ -319,27 +346,9 @@ void DrawPollingTab(Analyzer& a, UiState& s) {
 // ---------------------------------------------------------------- sensor tab
 constexpr size_t kRecentPoints = 3000; // "recent movements": highlighted and used by "Recent only"
 
-// Explanations of the sensor counters, shown on hover (same order as MarkKind).
-const char* kMarkTips[4] = {
-    "Missing packet\n\n"
-    "A packet carried 2, 3 or 4 times the movement of its neighbours: the mouse skipped 1-3 polls and "
-    "sent the accumulated movement all at once. Typical of a sensor or firmware that cannot keep up "
-    "with the polling rate, or of a weak wireless link.",
-
-    "Spike\n\n"
-    "A packet carried much more movement than its neighbours (at least 1.6x), but not an exact multiple, "
-    "so it is not explained by missing packets. It is a sudden jump of the sensor reading: dust on the "
-    "lens, a bad surface or a sensor glitch.",
-
-    "Dip\n\n"
-    "A packet carried much less movement than its neighbours (below 0.45x) while the mouse was moving "
-    "steadily. The sensor briefly lost tracking or reported late, often because of the surface or "
-    "lift-off.",
-
-    "Reversal\n\n"
-    "Two consecutive fast packets point in opposite directions. At 1000 Hz and above a hand cannot stop "
-    "and move back within one poll, so this is a sensor error (jitter or a bad reading), not real movement.",
-};
+// Explanation and legend name of each sensor anomaly (index = MarkKind).
+const char* MarkTip(int i) { return T(Str(int(Str::TipMissing) + i)); }
+const char* MarkName(int i) { return T(Str(int(Str::MarkMissing) + i)); }
 
 const ImU32 kMarkColors[4] = {
     IM_COL32(255, 90, 90, 255),   // missing packet
@@ -476,7 +485,7 @@ void DrawPath(const Analyzer& a, UiState& s, ImVec2 size) {
 
     // Grid scale in the bottom right corner.
     char t[48];
-    std::snprintf(t, sizeof(t), "grid %.0f counts", step);
+    std::snprintf(t, sizeof(t), T(Str::Grid), step);
     const ImVec2 ts = ImGui::CalcTextSize(t);
     dl->AddText(ImVec2(p1.x - ts.x - 8.0f, p1.y - ts.y - 6.0f), ImGui::GetColorU32(ImGuiCol_TextDisabled), t);
     dl->PopClipRect();
@@ -491,19 +500,15 @@ void DrawSensorTab(Analyzer& a, UiState& s) {
         };
         char buf[32];
         std::snprintf(buf, sizeof(buf), "%llu", (unsigned long long)a.checkedPackets);
-        Stat("Packets checked", buf, nullptr,
-             "Packets checked\n\n"
-             "Packets moving fast and steadily enough to be judged: at least 6 counts on average, with "
-             "consistent neighbours. Slow or irregular movement is skipped, because count rounding would "
-             "make the comparison unreliable. The other counters only refer to these packets.");
+        Stat(T(Str::PacketsChecked), buf, nullptr, T(Str::TipChecked));
         std::snprintf(buf, sizeof(buf), "%llu", (unsigned long long)a.skippedEstimate);
-        Stat("Missing", buf, color(a.skippedEstimate), kMarkTips[0]);
+        Stat(T(Str::Missing), buf, color(a.skippedEstimate), MarkTip(0));
         std::snprintf(buf, sizeof(buf), "%llu", (unsigned long long)a.spikes);
-        Stat("Spikes", buf, color(a.spikes), kMarkTips[1]);
+        Stat(T(Str::Spikes), buf, color(a.spikes), MarkTip(1));
         std::snprintf(buf, sizeof(buf), "%llu", (unsigned long long)a.dips);
-        Stat("Dips", buf, color(a.dips), kMarkTips[2]);
+        Stat(T(Str::Dips), buf, color(a.dips), MarkTip(2));
         std::snprintf(buf, sizeof(buf), "%llu", (unsigned long long)a.reversals);
-        Stat("Reversals", buf, color(a.reversals), kMarkTips[3]);
+        Stat(T(Str::Reversals), buf, color(a.reversals), MarkTip(3));
         ImGui::EndTable();
     }
     // Last stroke: angle and straightness, to spot angle snapping.
@@ -517,53 +522,42 @@ void DrawSensorTab(Analyzer& a, UiState& s) {
         // a hand on a long stroke always wobbles by more than this.
         const bool suspect = fit.length >= 1000 && fit.rmsDev < 1.0 && std::fabs(off) < 0.5;
         ImGui::BeginGroup();
-        ImGui::TextDisabled("Last stroke:");
+        ImGui::TextDisabled("%s", T(Str::LastStroke));
         ImGui::SameLine();
-        ImGui::Text("%.0f counts at %.1f°  ·  deviation %.1f counts RMS (%.2f %%)  ·  nearest guide %.0f° (%+.1f°)",
-                    fit.length, fit.angleDeg, fit.rmsDev, devPct, nearest == -90.0 ? 90.0 : nearest, off);
+        ImGui::Text(T(Str::StrokeInfo), fit.length, fit.angleDeg, fit.rmsDev, devPct, nearest == -90.0 ? 90.0 : nearest, off);
         if (suspect) {
             ImGui::SameLine();
-            ImGui::TextColored(kWarn, "  possible angle snapping");
+            ImGui::TextColored(kWarn, "%s", T(Str::PossibleSnapping));
         }
         ImGui::EndGroup();
-        Explain("Last stroke\n\n"
-                "The path between two pauses is fitted with a straight line. Deviation is how far, on average, "
-                "the points are from that line.\n\n"
-                "To check for angle snapping, draw slow freehand lines close to 0°, 45° and 90°. A hand always "
-                "wobbles by a few counts over a long stroke; if the deviation is close to zero and the angle "
-                "sits exactly on a guide, the mouse is straightening the line (angle snapping is on).");
+        Explain(T(Str::TipStroke));
     } else {
-        ImGui::TextDisabled("Last stroke: draw a line of at least 100 counts to measure its angle and straightness.");
+        ImGui::TextDisabled("%s", T(Str::StrokeNone));
     }
 
     ImGui::Spacing();
-    SectionTitle("Path");
+    SectionTitle(T(Str::Path));
 
     // View controls and anomaly legend
     UiState::PathView& v = s.pathView;
-    if (ImGui::Button("Fit")) v.autoFit = true;
+    if (ImGui::Button(L(Str::Fit, "fit"))) v.autoFit = true;
     ImGui::SameLine();
-    if (ImGui::Checkbox("Recent movements only", &v.recentOnly)) v.autoFit = true;
+    if (ImGui::Checkbox(L(Str::RecentOnly, "recent"), &v.recentOnly)) v.autoFit = true;
     ImGui::SameLine();
-    ImGui::Checkbox("Snapping guides", &v.guides);
+    ImGui::Checkbox(L(Str::SnapGuides, "guides"), &v.guides);
     ImGui::SameLine();
-    ImGui::TextDisabled("  zoom %.2f px/count%s", v.pxPerCount, v.autoFit ? " (auto)" : "");
-    const char* markNames[4] = {"missing", "spike", "dip", "reversal"};
+    ImGui::TextDisabled(T(Str::Zoom), v.pxPerCount, v.autoFit ? T(Str::ZoomAuto) : "");
     for (int i = 0; i < 4; ++i) {
         ImGui::SameLine(0, i == 0 ? 24.0f * s.scale : -1.0f);
-        ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kMarkColors[i]), "o %s", markNames[i]);
-        Explain(kMarkTips[i]);
+        ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(kMarkColors[i]), "o %s", MarkName(i));
+        Explain(MarkTip(i));
     }
 
     const float h = std::max(200.0f, ImGui::GetContentRegionAvail().y - ImGui::GetTextLineHeightWithSpacing() * 5.5f);
     DrawPath(a, s, ImVec2(ImGui::GetContentRegionAvail().x, h));
-    Hint("Wheel over the path: zoom. Drag: pan. Double click: fit. Up close, every dot is one packet.");
-    Hint("Continuity: move the mouse fast and steadily. Every packet is compared with its 4 neighbours: if it "
-         "carries 2-4 times their movement, packets are missing; if it carries much more or much less, it is a "
-         "spike or a dip. With a healthy sensor the counters stay at zero. Angle snapping: draw slow freehand "
-         "lines near 0°, 45° and 90° and read \"Last stroke\" above. The path uses raw sensor counts, "
-         "without Windows acceleration.");
-    if (ImGui::Button("Reset sensor")) a.resetSensor();
+    Hint(T(Str::HintPath));
+    Hint(T(Str::HintContinuity));
+    if (ImGui::Button(L(Str::ResetSensor, "resetsensor"))) a.resetSensor();
 }
 
 // ---------------------------------------------------------------- DPI tab
@@ -573,9 +567,7 @@ const ImVec4* DeviationColor(double pct) {
 }
 
 void DrawDpiTab(Analyzer& a, UiState& s) {
-    Hint("1. Lay a ruler (or the edge of the mousepad) and enter its length.  2. Put the mouse at the start "
-         "mark and the cursor over the pad below.  3. Hold the left button, slide the mouse in a straight line "
-         "to the end mark, release.  Repeat 5-10 times: every release adds a pass.");
+    Hint(T(Str::HintDpi));
     ImGui::Spacing();
 
     // --- Settings ---
@@ -585,10 +577,10 @@ void DrawDpiTab(Analyzer& a, UiState& s) {
     ImGui::SameLine();
     int unit = s.dpiInches ? 1 : 0;
     ImGui::SetNextItemWidth(70.0f * s.scale);
-    if (ImGui::Combo("Distance##unit", &unit, "cm\0in\0")) s.dpiInches = unit == 1;
+    if (ImGui::Combo(L(Str::Distance, "unit"), &unit, "cm\0in\0")) s.dpiInches = unit == 1;
     ImGui::SameLine(0, 30.0f * s.scale);
     ImGui::SetNextItemWidth(160.0f * s.scale);
-    ImGui::InputInt("DPI set on the mouse", &s.dpiConfigured, 100, 400);
+    ImGui::InputInt(L(Str::DpiSet, "dpiset"), &s.dpiConfigured, 100, 400);
     s.dpiConfigured = std::max(s.dpiConfigured, 1);
     const double inches = s.dpiInches ? s.dpiDistance : s.dpiDistance / 2.54;
 
@@ -607,13 +599,12 @@ void DrawDpiTab(Analyzer& a, UiState& s) {
                                                          : ImGui::GetColorU32(ImGuiCol_Border);
     dl->AddRectFilled(p0, p1, a.dpiActive ? IM_COL32(20, 40, 55, 255) : IM_COL32(14, 15, 18, 255), 8.0f);
     dl->AddRect(p0, p1, border, 8.0f, 0, a.dpiActive ? 2.0f : 1.0f);
-    char t[96];
+    char t[256];
     if (a.dpiActive) {
         const double counts = std::hypot(a.dpiSumX, a.dpiSumY);
-        std::snprintf(t, sizeof(t), "Recording...  %.0f counts  (%.0f DPI so far)", counts, counts / inches);
+        std::snprintf(t, sizeof(t), T(Str::Recording), counts, counts / inches);
     } else {
-        std::snprintf(t, sizeof(t), hovered ? "Hold the left button and slide along the ruler"
-                                            : "Move the cursor here to measure");
+        std::snprintf(t, sizeof(t), "%s", T(hovered ? Str::PadHover : Str::PadIdle));
     }
     const ImVec2 ts = ImGui::CalcTextSize(t);
     dl->AddText(ImVec2((p0.x + p1.x - ts.x) * 0.5f, (p0.y + p1.y - ts.y) * 0.5f),
@@ -632,18 +623,18 @@ void DrawDpiTab(Analyzer& a, UiState& s) {
     ImGui::PopFont();
     ImGui::SameLine();
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + s.fontBig->FontSize * 0.35f);
-    if (n) ImGui::TextDisabled("average of %zu pass%s", n, n == 1 ? "" : "es");
-    else ImGui::TextDisabled("no passes yet");
+    if (n) ImGui::TextDisabled(T(Str::AveragePasses), n);
+    else ImGui::TextDisabled("%s", T(Str::NoPasses));
 
     if (ImGui::BeginTable("dstats", 4, ImGuiTableFlags_SizingStretchSame)) {
-        StatF("Deviation from set DPI", "%+.1f %%", dev, n ? DeviationColor(dev) : nullptr);
+        StatF(T(Str::DevFromSet), "%+.1f %%", dev, n ? DeviationColor(dev) : nullptr);
         // Spread between passes: tells how repeatable the hand movement was.
         const double sdPct = n > 1 && mean > 0 ? 100.0 * sd / mean : 0.0;
-        StatF("Spread (std. dev.)", "%.1f %%", sdPct, n > 1 ? (sdPct < 1 ? &kGood : sdPct < 3 ? &kWarn : &kBad) : nullptr);
+        StatF(T(Str::Spread), "%.1f %%", sdPct, n > 1 ? (sdPct < 1 ? &kGood : sdPct < 3 ? &kWarn : &kBad) : nullptr);
         char buf[64];
         std::snprintf(buf, sizeof(buf), "%.0f / %.0f", lo, hi);
-        Stat("Min / Max", buf);
-        StatF("Passes", "%.0f", double(n));
+        Stat(T(Str::MinMax), buf);
+        StatF(T(Str::Passes), "%.0f", double(n));
         ImGui::EndTable();
     }
 
@@ -654,11 +645,11 @@ void DrawDpiTab(Analyzer& a, UiState& s) {
                                                     ImGui::GetTextLineHeightWithSpacing() * 11.0f)))) {
         ImGui::TableSetupScrollFreeze(0, 1);
         ImGui::TableSetupColumn("#");
-        ImGui::TableSetupColumn("Counts X");
-        ImGui::TableSetupColumn("Counts Y");
-        ImGui::TableSetupColumn("Angle");
+        ImGui::TableSetupColumn(T(Str::ColCountsX));
+        ImGui::TableSetupColumn(T(Str::ColCountsY));
+        ImGui::TableSetupColumn(T(Str::ColAngle));
         ImGui::TableSetupColumn("DPI");
-        ImGui::TableSetupColumn("Deviation");
+        ImGui::TableSetupColumn(T(Str::ColDeviation));
         ImGui::TableHeadersRow();
         for (size_t i = n; i-- > 0;) { // newest first
             const auto& p = a.dpiPasses[i];
@@ -677,61 +668,59 @@ void DrawDpiTab(Analyzer& a, UiState& s) {
     }
 
     ImGui::Spacing();
-    if (ImGui::Button("Remove last pass") && n) a.dpiPasses.pop_back();
+    if (ImGui::Button(L(Str::RemoveLast, "removelast")) && n) a.dpiPasses.pop_back();
     ImGui::SameLine();
-    if (ImGui::Button("Clear passes")) a.dpiPasses.clear();
+    if (ImGui::Button(L(Str::ClearPasses, "clearpasses"))) a.dpiPasses.clear();
 }
 
 // ---------------------------------------------------------------- clicks & wheel tab
 void DrawClickTab(Analyzer& a, UiState& s) {
     float thr = (float)a.chatterThresholdMs;
     ImGui::SetNextItemWidth(220.0f * s.scale);
-    if (ImGui::SliderFloat("Chatter threshold", &thr, 5.0f, 100.0f, "%.0f ms")) a.chatterThresholdMs = thr;
-    Hint("A new press arriving within the threshold after the previous release is counted as an "
-         "unintended double click (worn switch or debounce set too low).");
+    if (ImGui::SliderFloat(L(Str::ChatterThreshold, "chatter"), &thr, 5.0f, 100.0f, "%.0f ms")) a.chatterThresholdMs = thr;
+    Hint(T(Str::HintChatter));
     ImGui::Spacing();
 
     if (ImGui::BeginTable("clicks", 6, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_SizingStretchProp)) {
-        ImGui::TableSetupColumn("Button");
-        ImGui::TableSetupColumn("State");
-        ImGui::TableSetupColumn("Presses");
-        ImGui::TableSetupColumn("Release → press");
-        ImGui::TableSetupColumn("Hold time");
-        ImGui::TableSetupColumn("Chatter");
+        ImGui::TableSetupColumn(T(Str::ColButton));
+        ImGui::TableSetupColumn(T(Str::ColState));
+        ImGui::TableSetupColumn(T(Str::ColPresses));
+        ImGui::TableSetupColumn(T(Str::ColReleasePress));
+        ImGui::TableSetupColumn(T(Str::ColHold));
+        ImGui::TableSetupColumn(T(Str::ColChatter));
         ImGui::TableHeadersRow();
         for (int i = 0; i < 5; ++i) {
             const ButtonInfo& b = a.buttons[i];
             ImGui::TableNextRow();
-            ImGui::TableNextColumn(); ImGui::TextUnformatted(kButtonNames[i]);
+            ImGui::TableNextColumn(); ImGui::TextUnformatted(T(Str(int(Str::BtnLeft) + i)));
             ImGui::TableNextColumn();
-            if (b.down) ImGui::TextColored(kAccent, "PRESSED"); else ImGui::TextDisabled("released");
+            if (b.down) ImGui::TextColored(kAccent, "%s", T(Str::Pressed)); else ImGui::TextDisabled("%s", T(Str::Released));
             ImGui::TableNextColumn(); ImGui::Text("%llu", (unsigned long long)b.presses);
             ImGui::TableNextColumn();
             if (b.lastGapMs >= 0) ImGui::Text("%.1f ms", b.lastGapMs); else ImGui::TextDisabled("-");
             ImGui::TableNextColumn();
             if (b.lastHoldMs >= 0) ImGui::Text("%.1f ms", b.lastHoldMs); else ImGui::TextDisabled("-");
             ImGui::TableNextColumn();
-            if (b.chatter) ImGui::TextColored(kBad, "%llu (last %.1f ms)", (unsigned long long)b.chatter, b.lastChatterMs);
+            if (b.chatter) ImGui::TextColored(kBad, T(Str::ChatterLast), (unsigned long long)b.chatter, b.lastChatterMs);
             else ImGui::TextColored(kGood, "0");
         }
         ImGui::EndTable();
     }
 
     ImGui::Spacing();
-    SectionTitle("Wheel");
+    SectionTitle(T(Str::Wheel));
     if (ImGui::BeginTable("wheel", 4, ImGuiTableFlags_SizingStretchSame)) {
-        StatF("Notches up", "%.1f", a.wheelUp / 120.0);
-        StatF("Notches down", "%.1f", a.wheelDown / 120.0);
+        StatF(T(Str::NotchesUp), "%.1f", a.wheelUp / 120.0);
+        StatF(T(Str::NotchesDown), "%.1f", a.wheelDown / 120.0);
         char buf[32];
         std::snprintf(buf, sizeof(buf), "%llu", (unsigned long long)a.wheelReversals);
-        Stat("Quick reversals (<40 ms)", buf, a.wheelReversals ? &kBad : &kGood);
+        Stat(T(Str::QuickReversals), buf, a.wheelReversals ? &kBad : &kGood);
         std::snprintf(buf, sizeof(buf), "%.0f / %.0f", a.tiltLeft / 120.0, a.tiltRight / 120.0);
-        Stat("Tilt left / right", buf);
+        Stat(T(Str::Tilt), buf);
         ImGui::EndTable();
     }
-    Hint("Scroll the wheel slowly in one direction: every notch should count as 1 and reversals should "
-         "stay at zero. Decimal values mean a high-resolution wheel.");
-    if (ImGui::Button("Reset buttons and wheel")) a.resetButtons();
+    Hint(T(Str::HintWheel));
+    if (ImGui::Button(L(Str::ResetButtons, "resetbuttons"))) a.resetButtons();
 }
 
 } // namespace
@@ -812,33 +801,34 @@ void DrawUi(Analyzer& a, UiState& s, double deltaSeconds, uint64_t droppedPacket
             worst = std::max(worst, double(s.frameMs[i]));
         }
         const double avg = sum / double(s.frameMs.size());
-        char t[128];
+        char t[256];
         if (s.captureUsPerPacket >= 0)
-            std::snprintf(t, sizeof(t), "capture %.1f %% CPU · %.1f µs/packet    frame %.1f ms · worst %.1f ms",
-                          s.captureCpuPct, s.captureUsPerPacket, avg, worst);
+            std::snprintf(t, sizeof(t), T(Str::CaptureStats), s.captureCpuPct, s.captureUsPerPacket, avg, worst);
         else
-            std::snprintf(t, sizeof(t), "capture idle    frame %.1f ms · worst %.1f ms", avg, worst);
+            std::snprintf(t, sizeof(t), T(Str::CaptureIdle), avg, worst);
+        // Drawn on the tab bar row, which scrolls with the content. The layout cursor is not
+        // moved: moving it to a fixed screen position used to break the scrollbar.
         const ImVec2 ts = ImGui::CalcTextSize(t);
-        const ImVec2 wp = ImGui::GetWindowPos();
-        const ImVec2 pad = ImGui::GetStyle().WindowPadding;
+        const ImVec2 row = ImGui::GetCursorScreenPos();
+        const ImVec2 tp(row.x + ImGui::GetContentRegionAvail().x - ts.x, row.y);
         const ImU32 col = worst > avg * 2.5 + 4.0 ? ImGui::ColorConvertFloat4ToU32(kWarn) : ImGui::GetColorU32(ImGuiCol_TextDisabled);
-        ImGui::GetWindowDrawList()->AddText(ImVec2(wp.x + ImGui::GetWindowWidth() - ts.x - pad.x, wp.y + pad.y), col, t);
-        ImGui::SetCursorScreenPos(ImVec2(wp.x + ImGui::GetWindowWidth() - ts.x - pad.x, wp.y + pad.y));
-        ImGui::Dummy(ts);
-        Explain("Capture: CPU used by the high-priority capture thread, as a percentage of one core, and per "
-                "packet. Measured from the thread's own CPU cycles.\n\n"
-                "Frame: average and worst frame time of the interface over the last frames. It turns orange "
-                "when a frame takes much longer than usual (a stutter).");
-        ImGui::SetCursorScreenPos(ImVec2(wp.x + pad.x, wp.y + pad.y));
+        ImGui::GetWindowDrawList()->AddText(tp, col, t);
+        if (ImGui::IsWindowHovered() && ImGui::IsMouseHoveringRect(tp, ImVec2(tp.x + ts.x, tp.y + ts.y)) &&
+            ImGui::BeginTooltip()) {
+            ImGui::PushTextWrapPos(ImGui::GetFontSize() * 26.0f);
+            ImGui::TextUnformatted(T(Str::TipPerf));
+            ImGui::PopTextWrapPos();
+            ImGui::EndTooltip();
+        }
     }
     a.dpiArmed = false; // re-armed by the DPI tab only while the cursor is over its pad
     if (droppedPackets)
-        ImGui::TextColored(kBad, "Warning: %llu packets lost by the internal queue.", (unsigned long long)droppedPackets);
+        ImGui::TextColored(kBad, T(Str::Dropped), (unsigned long long)droppedPackets);
     if (ImGui::BeginTabBar("tabs")) {
-        if (ImGui::BeginTabItem("Polling rate"))    { DrawPollingTab(a, s); ImGui::EndTabItem(); }
-        if (ImGui::BeginTabItem("Sensor"))          { DrawSensorTab(a, s);  ImGui::EndTabItem(); }
-        if (ImGui::BeginTabItem("DPI"))             { DrawDpiTab(a, s);     ImGui::EndTabItem(); }
-        if (ImGui::BeginTabItem("Clicks & wheel"))  { DrawClickTab(a, s);   ImGui::EndTabItem(); }
+        if (ImGui::BeginTabItem(L(Str::TabPolling, "tab-polling"))) { DrawPollingTab(a, s); ImGui::EndTabItem(); }
+        if (ImGui::BeginTabItem(L(Str::TabSensor, "tab-sensor")))   { DrawSensorTab(a, s);  ImGui::EndTabItem(); }
+        if (ImGui::BeginTabItem(L(Str::TabDpi, "tab-dpi")))         { DrawDpiTab(a, s);     ImGui::EndTabItem(); }
+        if (ImGui::BeginTabItem(L(Str::TabClicks, "tab-clicks")))   { DrawClickTab(a, s);   ImGui::EndTabItem(); }
         ImGui::EndTabBar();
     }
     ImGui::EndChild();

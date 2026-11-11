@@ -1,4 +1,4 @@
-MOUSE TESTER 0.1.0
+MOUSE TESTER 0.2.0
 ==================
 
 A tester for high-end gaming mice on Windows: polling rate up to 8000 Hz,
@@ -22,6 +22,8 @@ TIPS FOR ACCURATE RESULTS
 - At 4000-8000 Hz use a high DPI (1600 or more): the polling rate is only
   measured while the mouse moves fast enough to report in every poll.
 - If more than one mouse is connected, pick yours in the menu at the top left.
+- The interface language can be changed in the menu below it (English, Italiano,
+  Русский, Español, Français, Deutsch, Português, 中文). It is remembered.
 
 
 THE TABS
