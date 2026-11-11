@@ -67,7 +67,7 @@
 - [x] Open source con licenza GPL-3.0-or-later (`LICENSE`, avvisi SPDX nei sorgenti, `THIRD_PARTY.txt` per Dear ImGui)
 - [x] Email dei commit sostituita con quella anonima di GitHub in tutta la storia, prima di pubblicare
 - [x] Repository pubblico, README per GitHub con screenshot, release v0.2.0 con lo zip
-- [ ] Sostituire lo screenshot del README con uno fatto con un mouse vero (ora è input simulato)
+- [x] Screenshot reali nel README (polling a 8000 Hz, sensore, click e rotella)
 - [ ] Post su r/MouseReview e nei Discord dedicati
 - [ ] Firma digitale dell'exe (es. Azure Trusted Signing) per evitare l'avviso di SmartScreen
 - [ ] Pacchetto winget

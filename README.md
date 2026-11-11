@@ -2,8 +2,11 @@
 
 A free, open-source tester for high-end gaming mice on Windows: **polling rate up to 8000 Hz**, sensor continuity, angle snapping, DPI, button chatter and wheel. Written in C++20 with Dear ImGui and DirectX 11.
 
-![Mouse Tester, Polling rate tab](docs/screenshot.png)
-<sub>Polling rate tab with simulated 8000 Hz input.</sub>
+![Mouse Tester, Polling rate tab with a mouse at 8000 Hz](docs/polling.png)
+
+| Sensor | Clicks & wheel |
+|---|---|
+| ![Sensor tab: path, anomaly counters and angle snapping guides](docs/sensor.png) | ![Clicks & wheel tab: chatter, hold time and wheel](docs/clicks.png) |
 
 ## Download
 Get the latest `MouseTester-x.y.z.zip` from the [Releases](../../releases) page, extract it and run `MouseTester.exe`. Nothing to install.
