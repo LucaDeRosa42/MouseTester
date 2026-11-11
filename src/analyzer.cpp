@@ -77,7 +77,8 @@ void Analyzer::processMotion(const MouseEvent& e) {
 }
 
 void Analyzer::checkContinuity() {
-    constexpr double kMinCounts = 6.0;   // below this, count rounding skews the ratios
+    constexpr double kMinCounts = 3.0;   // at 8000 Hz a fast hand gives only ~4-5 counts per packet
+    constexpr double kMinDiff = 2.0;     // and the anomaly must differ by 2+ counts, so ±1 rounding is not flagged
     constexpr double kSteady = 1.6;      // the neighbours must be consistent with each other
     constexpr double kSpike = 1.6;       // ratio above which the packet is anomalous
     constexpr double kDip = 0.45;        // ratio below which the packet is anomalous
@@ -97,10 +98,10 @@ void Analyzer::checkContinuity() {
         // The packet carries the movement of k polls: the previous k-1 never arrived.
         skippedEstimate += uint64_t(k) - 1;
         marks_.push({c.x, c.y, MarkKind::Skipped});
-    } else if (r >= kSpike) {
+    } else if (r >= kSpike && c.mag - avg >= kMinDiff) {
         ++spikes;
         marks_.push({c.x, c.y, MarkKind::Spike});
-    } else if (r <= kDip) {
+    } else if (r <= kDip && avg - c.mag >= kMinDiff) {
         ++dips;
         marks_.push({c.x, c.y, MarkKind::Dip});
     }

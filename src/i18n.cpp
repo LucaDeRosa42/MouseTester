@@ -187,28 +187,28 @@ const Row kStrings[] = {
     /* PacketsChecked */ {"Packets checked", "Pacchetti valutati", "Проверено пакетов", "Paquetes evaluados",
                           "Paquets analysés", "Geprüfte Pakete", "Pacotes avaliados", "已检测数据包"},
     /* TipChecked */ {
-        "Packets checked\n\nPackets moving fast and steadily enough to be judged: at least 6 counts on average, with "
+        "Packets checked\n\nPackets moving fast and steadily enough to be judged: at least 3 counts on average, with "
         "consistent neighbours. Slow or irregular movement is skipped, because count rounding would make the "
         "comparison unreliable. The other counters only refer to these packets.",
-        "Pacchetti valutati\n\nPacchetti abbastanza veloci e regolari da poter essere giudicati: almeno 6 count in "
+        "Pacchetti valutati\n\nPacchetti abbastanza veloci e regolari da poter essere giudicati: almeno 3 count in "
         "media, con vicini coerenti. Il movimento lento o irregolare viene saltato, perché l'arrotondamento dei "
         "count renderebbe il confronto inaffidabile. Gli altri contatori si riferiscono solo a questi pacchetti.",
-        "Проверено пакетов\n\nПакеты с достаточно быстрым и ровным движением для оценки: в среднем не меньше 6 "
+        "Проверено пакетов\n\nПакеты с достаточно быстрым и ровным движением для оценки: в среднем не меньше 3 "
         "отсчётов, с согласованными соседями. Медленное или неровное движение пропускается — округление отсчётов "
         "сделало бы сравнение ненадёжным. Остальные счётчики относятся только к этим пакетам.",
-        "Paquetes evaluados\n\nPaquetes con movimiento lo bastante rápido y regular para juzgarlos: al menos 6 "
+        "Paquetes evaluados\n\nPaquetes con movimiento lo bastante rápido y regular para juzgarlos: al menos 3 "
         "cuentas de media, con vecinos coherentes. El movimiento lento o irregular se omite, porque el redondeo "
         "haría poco fiable la comparación. Los demás contadores se refieren solo a estos paquetes.",
-        "Paquets analysés\n\nPaquets dont le mouvement est assez rapide et régulier pour être jugé : au moins 6 "
+        "Paquets analysés\n\nPaquets dont le mouvement est assez rapide et régulier pour être jugé : au moins 3 "
         "counts en moyenne, avec des voisins cohérents. Le mouvement lent ou irrégulier est ignoré, car l'arrondi "
         "rendrait la comparaison peu fiable. Les autres compteurs ne concernent que ces paquets.",
-        "Geprüfte Pakete\n\nPakete mit ausreichend schneller und gleichmäßiger Bewegung: im Mittel mindestens 6 "
+        "Geprüfte Pakete\n\nPakete mit ausreichend schneller und gleichmäßiger Bewegung: im Mittel mindestens 3 "
         "Counts, mit stimmigen Nachbarn. Langsame oder unregelmäßige Bewegung wird übersprungen, weil die Rundung "
         "den Vergleich unzuverlässig machen würde. Die anderen Zähler beziehen sich nur auf diese Pakete.",
-        "Pacotes avaliados\n\nPacotes com movimento rápido e regular o bastante para serem avaliados: pelo menos 6 "
+        "Pacotes avaliados\n\nPacotes com movimento rápido e regular o bastante para serem avaliados: pelo menos 3 "
         "contagens em média, com vizinhos coerentes. Movimento lento ou irregular é ignorado, pois o arredondamento "
         "tornaria a comparação pouco confiável. Os outros contadores se referem só a esses pacotes.",
-        "已检测数据包\n\n移动足够快且平稳、可以被评判的数据包：平均至少 6 计数，且与相邻包一致。慢速或不规则的移动会被跳过，"
+        "已检测数据包\n\n移动足够快且平稳、可以被评判的数据包：平均至少 3 计数，且与相邻包一致。慢速或不规则的移动会被跳过，"
         "因为计数取整会让比较不可靠。其他计数器只统计这些数据包。"},
     /* Missing */ {"Missing", "Mancanti", "Пропущено", "Perdidos", "Manquants", "Fehlend", "Perdidos", "丢失"},
     /* Spikes */ {"Spikes", "Picchi", "Всплески", "Picos", "Pics", "Spitzen", "Picos", "尖峰"},
