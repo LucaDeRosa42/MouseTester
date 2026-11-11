@@ -5,3 +5,4 @@ CMakeSettings.json
 *.user
 res/app_preview.png
 dist/*.zip
+CLAUDE.md
