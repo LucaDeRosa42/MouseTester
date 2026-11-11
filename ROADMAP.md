@@ -53,3 +53,4 @@
 - [x] Icona dell'eseguibile e della finestra (`res/app.ico`, rigenerabile con `tools/make_icon.ps1`)
 - [x] Informazioni di versione dell'eseguibile (0.1.0, in `res/resource.h`)
 - [x] Build Release distribuibile: eseguibile unico con CRT statica, dipende solo da DLL di sistema
+- [x] Versione 0.1.0 rilasciata: tag `v0.1.0` e `dist/MouseTester-0.1.0.zip` (exe + `dist/README.txt` per gli utenti)
