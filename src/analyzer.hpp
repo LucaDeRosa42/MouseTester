@@ -133,6 +133,14 @@ public:
     int64_t  wheelLastQpc = 0;
     int      wheelLastDir = 0;
 
+    // Movement on click: counts the sensor reports from a press until shortly after the
+    // release, for clicks made with the mouse still. A good mouse reports nothing.
+    uint64_t clickMoveClicks = 0; // clicks measured
+    uint64_t clickMoveMoved = 0;  // of which with some movement
+    double   clickMoveSum = 0;    // sum of the per-click distances, for the average
+    double   clickMoveMax = 0;    // largest per-click distance, in counts
+    double   clickMoveLast = -1;  // distance of the last measured click, -1 = none yet
+
     // DPI measurement in passes. The UI arms it while the cursor is over the measuring pad;
     // a pass starts on the raw left-button press and ends on the raw release, so its
     // boundaries are exact to the packet.
@@ -175,6 +183,16 @@ private:
         double ex = 0, ey = 0;         // last point, relative to the first
     } stroke_;
     void strokeAdd(double x, double y);
+
+    // Click being measured for movement on click.
+    struct ClickTrack {
+        bool    active = false;
+        int     button = 0;
+        int64_t releaseQpc = 0; // 0 = still pressed
+        double  dx = 0, dy = 0; // movement since the press
+        double  maxDist = 0;    // farthest point from the press position
+    } click_;
+    void clickFinish(int64_t nowQpc); // closes the click once its window after the release is over
 
     std::deque<int64_t> lastSecond_;
     std::vector<float> scratch_;

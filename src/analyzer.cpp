@@ -7,12 +7,20 @@
 
 namespace {
 constexpr double kMotionGapUs = 50'000.0; // beyond 50 ms we consider the mouse stopped
+
+// Movement on click: only clicks made with the mouse still for this long are measured...
+constexpr double kClickStillMs = 100.0;
+// ...and held for less than this (longer presses are drags or holds, moved on purpose).
+constexpr double kClickMaxHoldMs = 300.0;
+// Movement is still counted for this long after the release (the button springing back).
+constexpr double kClickTailMs = 20.0;
 }
 
 void Analyzer::process(const MouseEvent& e) {
     ++devicePackets[e.device];
     if (deviceFilter && e.device != deviceFilter) return;
 
+    clickFinish(e.qpc);
     if (e.dx || e.dy) processMotion(e);
     if (e.buttonFlags) processButtons(e);
 }
@@ -44,6 +52,11 @@ void Analyzer::processMotion(const MouseEvent& e) {
     if (dpiActive) {
         dpiSumX += e.dx;
         dpiSumY += e.dy;
+    }
+    if (click_.active) {
+        click_.dx += e.dx;
+        click_.dy += e.dy;
+        click_.maxDist = std::max(click_.maxDist, std::hypot(click_.dx, click_.dy));
     }
 
     // --- Sensor continuity ---
@@ -124,6 +137,16 @@ void Analyzer::processButtons(const MouseEvent& e) {
     for (int i = 0; i < 5; ++i) {
         ButtonInfo& b = buttons[i];
         if (f & (1u << (2 * i))) {
+            // Movement on click: start measuring if the mouse was still (and not on the DPI pad,
+            // where the left button is held down while moving on purpose).
+            const bool still = !lastMoveQpc_ || toMs(e.qpc - lastMoveQpc_) >= kClickStillMs;
+            if (!click_.active && still && !dpiArmed && !dpiActive) click_ = ClickTrack{true, i};
+        }
+        if ((f & (1u << (2 * i + 1))) && click_.active && click_.button == i && !click_.releaseQpc) {
+            if (b.lastDownQpc && toMs(e.qpc - b.lastDownQpc) > kClickMaxHoldMs) click_.active = false;
+            else click_.releaseQpc = e.qpc;
+        }
+        if (f & (1u << (2 * i))) {
             if (b.lastUpQpc) {
                 b.lastGapMs = toMs(e.qpc - b.lastUpQpc);
                 if (b.lastGapMs < chatterThresholdMs) {
@@ -155,8 +178,25 @@ void Analyzer::processButtons(const MouseEvent& e) {
     }
 }
 
+void Analyzer::clickFinish(int64_t nowQpc) {
+    if (!click_.active) return;
+    // Still held after the time limit: a drag or a hold, not a click.
+    if (!click_.releaseQpc) {
+        if (toMs(nowQpc - buttons[click_.button].lastDownQpc) > kClickMaxHoldMs) click_.active = false;
+        return;
+    }
+    if (toMs(nowQpc - click_.releaseQpc) < kClickTailMs) return;
+    click_.active = false;
+    ++clickMoveClicks;
+    if (click_.maxDist > 0) ++clickMoveMoved;
+    clickMoveSum += click_.maxDist;
+    clickMoveMax = std::max(clickMoveMax, click_.maxDist);
+    clickMoveLast = click_.maxDist;
+}
+
 void Analyzer::refresh(int64_t nowQpc) {
     nowQpc_ = nowQpc;
+    clickFinish(nowQpc);
     const int64_t oneSecond = int64_t(freq_);
     while (!lastSecond_.empty() && nowQpc - lastSecond_.front() > oneSecond) lastSecond_.pop_front();
     packetsLastSecond = double(lastSecond_.size());
@@ -297,4 +337,8 @@ void Analyzer::resetButtons() {
     wheelUp = wheelDown = tiltLeft = tiltRight = 0;
     wheelReversals = 0;
     wheelLastDir = 0;
+    clickMoveClicks = clickMoveMoved = 0;
+    clickMoveSum = clickMoveMax = 0;
+    clickMoveLast = -1;
+    click_ = ClickTrack{};
 }

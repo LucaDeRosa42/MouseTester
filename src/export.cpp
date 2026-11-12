@@ -110,6 +110,12 @@ bool ExportReport(const Analyzer& a, const UiState& s, const std::wstring& path)
     std::fprintf(f, "Notches up / down:        %.1f / %.1f\n", a.wheelUp / 120.0, a.wheelDown / 120.0);
     std::fprintf(f, "Quick reversals (<40 ms): %llu\n", (unsigned long long)a.wheelReversals);
     std::fprintf(f, "Tilt left / right:        %.0f / %.0f\n", a.tiltLeft / 120.0, a.tiltRight / 120.0);
+    std::fprintf(f, "\n[Movement on click] (mouse still, clicks shorter than 300 ms)\n");
+    std::fprintf(f, "Clicks measured:          %llu\n", (unsigned long long)a.clickMoveClicks);
+    std::fprintf(f, "With movement:            %llu\n", (unsigned long long)a.clickMoveMoved);
+    if (a.clickMoveClicks)
+        std::fprintf(f, "Average / max:            %.1f / %.0f counts\n",
+                     a.clickMoveSum / double(a.clickMoveClicks), a.clickMoveMax);
 
     const bool ok = std::ferror(f) == 0;
     std::fclose(f);

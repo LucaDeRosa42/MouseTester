@@ -540,6 +540,34 @@ const Row kStrings[] = {
         "Gire a roda devagar em uma só direção: cada passo deve contar 1 e as inversões devem ficar em zero. "
         "Valores decimais indicam uma roda de alta resolução.",
         "朝一个方向慢慢滚动滚轮：每一格应计为 1，反向次数应保持为零。出现小数说明是高精度滚轮。"},
+    /* ClickMove */ {"Movement on click", "Movimento al click", "Смещение при клике", "Movimiento al hacer clic",
+                     "Mouvement au clic", "Bewegung beim Klicken", "Movimento ao clicar", "点击时的位移"},
+    /* ClickMoveMeasured */ {"Clicks measured", "Click misurati", "Измерено кликов", "Clics medidos",
+                             "Clics mesurés", "Gemessene Klicks", "Cliques medidos", "已测点击"},
+    /* ClickMoveMoved */ {"With movement", "Con movimento", "Со смещением", "Con movimiento",
+                          "Avec mouvement", "Mit Bewegung", "Com movimento", "有位移"},
+    /* ClickMoveAvgMax */ {"Average / max (counts)", "Media / max (count)", "Среднее / макс. (counts)",
+                           "Media / máx. (counts)", "Moyenne / max (counts)", "Mittel / max (Counts)",
+                           "Média / máx. (counts)", "平均 / 最大 (counts)"},
+    /* ClickMoveLast */ {"Last click (counts)", "Ultimo click (count)", "Последний клик (counts)",
+                         "Último clic (counts)", "Dernier clic (counts)", "Letzter Klick (Counts)",
+                         "Último clique (counts)", "上次点击 (counts)"},
+    /* HintClickMove */ {
+        "Keep the mouse still and click normally: a good mouse reports 0 counts. Only clicks made after 100 ms "
+        "without movement and shorter than 300 ms are measured, so drags are ignored.",
+        "Tieni il mouse fermo e clicca normalmente: un buon mouse riporta 0 count. Vengono misurati solo i click "
+        "fatti dopo 100 ms senza movimento e più brevi di 300 ms, quindi i trascinamenti sono ignorati.",
+        "Держите мышь неподвижно и кликайте как обычно: хорошая мышь показывает 0 counts. Измеряются только клики "
+        "после 100 мс без движения и короче 300 мс, поэтому перетаскивания не учитываются.",
+        "Mantén el ratón quieto y haz clic con normalidad: un buen ratón marca 0 counts. Solo se miden los clics "
+        "hechos tras 100 ms sin movimiento y de menos de 300 ms, así que los arrastres se ignoran.",
+        "Gardez la souris immobile et cliquez normalement : une bonne souris indique 0 count. Seuls les clics faits "
+        "après 100 ms sans mouvement et de moins de 300 ms sont mesurés, les glisser sont donc ignorés.",
+        "Maus stillhalten und normal klicken: Eine gute Maus meldet 0 Counts. Gemessen werden nur Klicks nach "
+        "100 ms ohne Bewegung und kürzer als 300 ms, Ziehen wird also ignoriert.",
+        "Mantenha o mouse parado e clique normalmente: um bom mouse indica 0 counts. Só são medidos os cliques "
+        "feitos após 100 ms sem movimento e com menos de 300 ms, então arrastos são ignorados.",
+        "保持鼠标不动并正常点击：好的鼠标应为 0 counts。只测量静止 100 ms 后进行且短于 300 ms 的点击，因此拖动会被忽略。"},
     /* ResetButtons */ {"Reset buttons and wheel", "Azzera tasti e rotella", "Сбросить кнопки и колесо",
                         "Reiniciar botones y rueda", "Réinitialiser boutons et molette", "Tasten und Mausrad zurücksetzen",
                         "Reiniciar botões e roda", "重置按键和滚轮"},

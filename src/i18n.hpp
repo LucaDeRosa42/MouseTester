@@ -29,7 +29,8 @@ enum class Str {
     DevFromSet, Spread, Passes, ColCountsX, ColCountsY, ColAngle, ColDeviation, RemoveLast, ClearPasses,
     // Clicks & wheel
     ChatterThreshold, HintChatter, ColState, ColReleasePress, ColHold, Pressed, Released, ChatterLast,
-    Wheel, NotchesUp, NotchesDown, QuickReversals, Tilt, HintWheel, ResetButtons,
+    Wheel, NotchesUp, NotchesDown, QuickReversals, Tilt, HintWheel,
+    ClickMove, ClickMoveMeasured, ClickMoveMoved, ClickMoveAvgMax, ClickMoveLast, HintClickMove, ResetButtons,
     Count
 };
 

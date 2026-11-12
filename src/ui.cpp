@@ -722,6 +722,26 @@ void DrawClickTab(Analyzer& a, UiState& s) {
         ImGui::EndTable();
     }
     Hint(T(Str::HintWheel));
+
+    ImGui::Spacing();
+    SectionTitle(T(Str::ClickMove));
+    if (ImGui::BeginTable("clickmove", 4, ImGuiTableFlags_SizingStretchSame)) {
+        char buf[48];
+        std::snprintf(buf, sizeof(buf), "%llu", (unsigned long long)a.clickMoveClicks);
+        Stat(T(Str::ClickMoveMeasured), buf);
+        std::snprintf(buf, sizeof(buf), "%llu", (unsigned long long)a.clickMoveMoved);
+        Stat(T(Str::ClickMoveMoved), buf, a.clickMoveClicks ? (a.clickMoveMoved ? &kWarn : &kGood) : nullptr);
+        if (a.clickMoveClicks)
+            std::snprintf(buf, sizeof(buf), "%.1f / %.0f", a.clickMoveSum / double(a.clickMoveClicks), a.clickMoveMax);
+        else
+            std::snprintf(buf, sizeof(buf), "-");
+        Stat(T(Str::ClickMoveAvgMax), buf);
+        if (a.clickMoveLast >= 0) std::snprintf(buf, sizeof(buf), "%.0f", a.clickMoveLast);
+        else std::snprintf(buf, sizeof(buf), "-");
+        Stat(T(Str::ClickMoveLast), buf);
+        ImGui::EndTable();
+    }
+    Hint(T(Str::HintClickMove));
     if (ImGui::Button(L(Str::ResetButtons, "resetbuttons"))) a.resetButtons();
 }
 
