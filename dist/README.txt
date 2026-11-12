@@ -1,4 +1,4 @@
-MOUSE TESTER 0.2.0
+MOUSE TESTER 0.3.0
 ==================
 
 A tester for high-end gaming mice on Windows: polling rate up to 8000 Hz,
@@ -48,7 +48,9 @@ DPI
 Clicks & wheel
   Click each button: a second press arriving too soon after a release is
   counted as chatter (unwanted double click). Scroll the wheel slowly: every
-  notch should count as 1 and reversals should stay at zero.
+  notch should count as 1 and reversals should stay at zero. For movement
+  on click, keep the mouse still and click normally: a good mouse reports
+  0 counts.
 
 
 EXPORT
